@@ -1,0 +1,6 @@
+all_datasets/
+datacomp/
+experiments/
+slurm/
+.ipynb_checkpoints/
+baselines/.ipynb_checkpoints/
