@@ -64,7 +64,7 @@ def load_uids_with_basic_filter_helper(embedding_path) -> np.ndarray:
         np.ndarray: array of uids
     """
     # make this uid, text, original width, original height
-    embedding = torch.from_numpy(np.load(path_embedding)['image_embedding'])
+    df = torch.from_numpy(np.load(embedding_path))#['image_embedding'])
 
     lang_detect_model = fasttext.load_model(download("fasttext", "~/.cache/fasttext"))
 
@@ -177,7 +177,7 @@ def get_centroid_ids_gpu(
 def load_uids_with_image_filter(
     val_embedding_path: str,
     pool_embedding_path: str,
-    val_centroids_path: str,
+    # val_centroids_path: str,
     pool_centroids_path: str,
     batch_size:int,
     threshold: Union[float,None]=None,
@@ -185,8 +185,9 @@ def load_uids_with_image_filter(
 ) -> np.ndarray:
     
     key = "image_embedding"
-    val_embed_df=load_embedding(val_embedding_path, [key,"uid"])
-    pool_embed_df=load_embedding(pool_embedding_path, [key,"uid"])
+    sim_key = "similarity_score"
+    val_embed_df=load_embedding(val_embedding_path, [key,"uid",sim_key])
+    pool_embed_df=load_embedding(pool_embedding_path, [key,"uid",sim_key])
     val_embedding = torch.Tensor(val_embed_df[key])
     pool_embedding = torch.Tensor(pool_embed_df[key])
 
@@ -200,12 +201,11 @@ def load_uids_with_image_filter(
         )
     target_centroid_ids = torch.unique(target_centroid_ids)
     if fraction is not None:
-        key = "image_embedding"
-        threshold = get_threshold(embedding_path=embedding_path, 
-                                  key=key, 
+        threshold, _ = get_threshold(embedding_path=pool_embedding_path, 
+                                  key=sim_key, 
                                   fraction=fraction)
-        df_index = pool_embedding[key] >= threshold
-        pool_embedding_df = pool_embedding_df[df_index]
+        uids=np.array([uid for uid in pool_embed_df[pool_embed_df[sim_key] >= threshold]["uid"]])
+        pool_embed_df = pool_embed_df[pool_embed_df["uid"].isin(uids)] 
     
     # caption filter - nEED TO ADD
     # mask = caption_filter(df, lang_detect_model)
@@ -217,7 +217,6 @@ def load_uids_with_image_filter(
             centroids=pool_centroids,
             batch_size=batch_size,
         )
-    # candidate_centroid_ids = torch.unique(candidate_centroid_ids)
     centroid_id_to_uids = {}
     for uid, label in zip(uids, candidate_centroid_ids):
         centroid_id_to_uids.setdefault(label.item(), []).append(uid)
@@ -297,7 +296,7 @@ def apply_filter(args: Any) -> None:
         uids = load_uids_with_image_filter(
             val_embedding_path= args.val_embedding_path,
             pool_embedding_path=args.embedding_path,
-            val_centroids_path=args.centroids_path,
+            # val_centroids_path=args.centroids_path,
             pool_centroids_path=args.centroids_path,
             batch_size=16,
         )
@@ -309,18 +308,18 @@ def apply_filter(args: Any) -> None:
             fraction=args.fraction,
             num_workers=0,
         )
-    elif args.name == "image_based_intersect_clip_score":
+    elif args.name == "image_clip":
         print(f"threshold {args.threshold} and fraction {args.fraction}")
         uids = load_uids_with_image_filter(
             val_embedding_path= args.val_embedding_path,
             pool_embedding_path=args.embedding_path,
-            val_centroids_path=args.centroids_path,
+            # val_centroids_path=args.centroids_path,
             pool_centroids_path=args.centroids_path,
             batch_size=args.batch_size,
-            arch=args.arch,
+            # arch=args.arch,
             threshold=args.threshold,
             fraction=args.fraction,
-            num_workers=args.num_workers,
+            # num_workers=args.num_workers,
         )
     else:
         raise ValueError(f"Unknown args.name argument: {args.name}")

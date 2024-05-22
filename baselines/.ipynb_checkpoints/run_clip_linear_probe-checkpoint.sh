@@ -7,6 +7,7 @@
 #SBATCH -c 8
 #SBATCH --mem=50G
 #SBATCH --time=12:00:00
+#SBATCH --qos vision-beery-free
 
 source /data/vision/beery/scratch/neha/.bashrc
 conda activate datacomp

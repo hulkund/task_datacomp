@@ -11,31 +11,36 @@ from sklearn.linear_model import LogisticRegression
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR100
 from tqdm import tqdm
-from all_datasets.FMoW_dataset import FMoWDataset
-from all_datasets.COOS_dataset import COOSDataset
 from sklearn.metrics import precision_score, recall_score, accuracy_score
 import json
+from all_datasets.FMoW_dataset import FMoWDataset
+from all_datasets.COOS_dataset import COOSDataset
+from all_datasets.iWildCam_dataset import iWildCamDataset
+
 
 # Load the model
 device = "cuda" if torch.cuda.is_available() else "cpu"
+print("cuda")
 
+def get_dataset(dataset_name,split,subset_path=None,transform=None):
+    if dataset_name == "COOS":
+        dataset = COOSDataset(split=split,subset_path=subset_path,transform=transform)
+    elif dataset_name == "FMoW":
+        dataset = FMoWDataset(split=split,subset_path=subset_path,transform=transform)
+    elif dataset_name == "iWildCam":
+        dataset = iWildCamDataset(split=split,subset_path=subset_path,transform=transform)
+    return dataset
 
 def get_model_processor():
     model, preprocess = clip.load('ViT-B/32', device)
     return model, preprocess
 
-def get_dataset(dataset_name,split,subset_path,transform):
-    if dataset_name == "COOS":
-        dataset = COOSDataset(split=split,subset_path=subset_path,transform=transform)
-    elif dataset_name == "FMoW":
-        dataset = FMoWDataset(split=split,subset_path=subset_path,transform=transform)
-    return dataset
-
 def get_features(model,dataset):
+    device="cuda"
     all_features = []
     all_labels = []
     with torch.no_grad():
-        for images,_, labels,_ in tqdm(DataLoader(dataset, batch_size=100)):
+        for images,_, labels,_ in tqdm(DataLoader(dataset, batch_size=500)):
             features = model.encode_image(images.to(device))
             all_features.append(features)
             all_labels.append(labels)
@@ -79,7 +84,7 @@ def main():
         "--dataset_name",
         type=str,
         required=True,
-        choices=["FMoW","COOS"],
+        choices=["FMoW","COOS","iWildCam"],
         default="COOS",
         help="Dataset name",
     )
@@ -100,13 +105,37 @@ def main():
     args = parser.parse_args()
     print(f"training on {args.subset_path} for {args.dataset_name}")
     model, preprocess = get_model_processor()
-    train_dataset = get_dataset(dataset_name=args.dataset_name,split="train",subset_path=args.subset_path,transform=preprocess)
-    for C in [0.1,0.25,0.5,0.75]:
+    train_dataset = get_dataset(dataset_name=args.dataset_name,
+                                split="train",
+                                subset_path=args.subset_path,
+                                transform=preprocess)
+    for C in [0.75]:
         classifier = train(model=model, train_dataset=train_dataset, C=C)
-        for task_name in ["test1","test2","test3","test4"]:
-            test_dataset = get_dataset(dataset_name=args.dataset_name,split=task_name,subset_path=None,transform=preprocess)
-            # test_features, test_labels = get_features(model=model, dataset=test_dataset)
-            metrics = evaluate(model=model, classifier=classifier, test_dataset=test_dataset, task_name=task_name)
+        subset_path=args.subset_path.split('/')[-1]
+        if 'test' in subset_path:
+            task_name = subset_path[:5]
+            print(f"testing on {task_name}")
+            test_dataset = get_dataset(dataset_name=args.dataset_name,
+                                       split=task_name,
+                                       subset_path=None,
+                                       transform=preprocess)
+            metrics = evaluate(model=model, 
+                               classifier=classifier, 
+                               test_dataset=test_dataset, 
+                               task_name=task_name)
+            with open(args.outputs_path+f"{task_name}_C={str(C)}_metrics.json", "w") as json_file:
+                json.dump(metrics, json_file, indent=4)
+        else:
+            for task_name in ["test1","test2","test3","test4"]:
+                test_dataset = get_dataset(dataset_name=args.dataset_name,
+                                           split=task_name,
+                                           subset_path=None,
+                                           transform=preprocess)
+                # test_features, test_labels = get_features(model=model, dataset=test_dataset)
+                metrics = evaluate(model=model, 
+                                   classifier=classifier, 
+                                   test_dataset=test_dataset, 
+                                   task_name=task_name)
             with open(args.outputs_path+f"{task_name}_C={str(C)}_metrics.json", "w") as json_file:
                 json.dump(metrics, json_file, indent=4)
             

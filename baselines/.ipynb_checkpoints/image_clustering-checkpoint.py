@@ -151,7 +151,7 @@ if __name__ == "__main__":
     # )
     # parser.add_argument("--save_path", type=str, help="local path to output centroids")
     parser.add_argument(
-        "--dataset_name", default="COOS", type=int, help="number of clusters"
+        "--dataset_name", default="COOS", type=str, help="name of dataset to cluster"
     )
     parser.add_argument(
         "--num_clusters", default=1000, type=int, help="number of clusters"
@@ -190,7 +190,6 @@ if __name__ == "__main__":
     num_gpus = args.num_gpus
     sample_ratio = args.sample_ratio
     caption_filtering = not args.disable_caption_filtering
-    dataset_
     # fs, url = fsspec.core.url_to_fs(args.metadata_dir)
     # paths = [(fs, str(x.split(".parquet")[0])) for x in fs.ls(url) if ".parquet" in x]
     root_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{args.dataset_name}/embeddings/"
@@ -215,5 +214,5 @@ if __name__ == "__main__":
         centroids = train_kmeans(
             embeddings, num_clusters, num_gpus=num_gpus, seed=args.seed
         )
-        save_path = "/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{}/centroids/"+"{}_centroids.pt".format(args.dataset_name,split)
+        save_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{args.dataset_name}/centroids/"+"{}_centroids.pt".format(split)
         torch.save(centroids, save_path, pickle_protocol=4)

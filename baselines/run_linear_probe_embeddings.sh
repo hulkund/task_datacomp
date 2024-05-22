@@ -9,12 +9,10 @@
 #SBATCH --time=12:00:00
 #SBATCH --qos vision-beery-free
 
+
 source /data/vision/beery/scratch/neha/.bashrc
 conda activate datacomp
 
-
-python baselines/clip_linear_probe.py \
+python saving_clip_embeddings_for_linear_probe.py \
 	--dataset_name "$1" \
-	--subset_path "$2" \
-    --outputs_path "$3"
-
+	--split "$2" \
