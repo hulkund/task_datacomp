@@ -178,6 +178,12 @@ if __name__ == "__main__":
         help="whether to disable text-based basic filtering",
     )
     parser.add_argument(
+        "--key",
+        default="image_embedding",
+        type=str,
+        help="which embedding to cluster",
+    )
+    parser.add_argument(
         "--seed",
         default=0,
         type=int,
@@ -202,7 +208,7 @@ if __name__ == "__main__":
         print(f"split: {split} | caption filtering: {caption_filtering} | sample_ratio={sample_ratio}")
         embeddings = load_embedding(
             path,
-            key="image_embedding",
+            key=args.key,
             n_workers=args.num_workers,
             caption_filtering=caption_filtering,
             sample_ratio=sample_ratio,

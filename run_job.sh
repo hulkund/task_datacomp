@@ -11,4 +11,4 @@
 source /data/vision/beery/scratch/neha/.bashrc
 conda activate datacomp
 
-python get_clip_embeddings.py --dataset_name "FMoW"
+python get_clip_embeddings.py --dataset_name "CivilComments"

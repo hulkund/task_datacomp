@@ -3,9 +3,8 @@
 #SBATCH --qos=vision-beery-main
 #SBATCH --account=vision-beery
 #SBATCH --output=slurm/slurm-%J.out
-#SBATCH --gres=gpu:1
 #SBATCH -c 8
-#SBATCH --mem=50G
+#SBATCH --mem=10G
 #SBATCH --time=12:00:00
 #SBATCH --qos vision-beery-free
 

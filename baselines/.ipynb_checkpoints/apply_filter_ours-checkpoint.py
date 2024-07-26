@@ -16,6 +16,7 @@ import torch
 from nltk.corpus import wordnet
 from tqdm import tqdm
 import pdb
+import sklearn
 
 def get_fasttext_language(text: str, lang_detect_model: Any) -> str:
     """helper to detect language of a piece of text (fasttext)
@@ -119,6 +120,87 @@ def load_uids_with_clip_score(
     uids=np.array([uid for uid in embed_df[embed_df[key] >= threshold]["uid"]])
     return uids
 
+def load_uids_with_image_alignment(
+    pool_embedding_path: str,
+    val_embedding_path: str,
+    fraction: float,
+) -> np.ndarray:
+    """load in metadata with a threshold applied
+
+    Args:
+        metadata_dir_path (str): directory where metadata is stored
+        key (str): column we are interested in the parquet column store
+        threshold (float): threshold value to apply on the key column
+        fraction (float): fraction value to apply on the key column
+        num_workers (int): number of cpu workers, each of which processes a parquet
+        gcld3_en_filter (bool): if True, apply gcld3 english filtering (used for laion2b filter)
+                                Default False.
+
+    Returns:
+        np.ndarray: array of uids
+    """
+
+    # NOTE: assumes errors already checked as in baselines.py
+    key = "image_embedding"
+    pool_embed = load_embedding(pool_embedding_path, [key, "uid"])
+    val_embed = load_embedding(val_embedding_path, [key, "uid"])
+    batch_size=1000
+    similarities=[]
+    for i in range(0, len(pool_embed), batch_size):
+        pool_embed_batch = np.vstack(pool_embed[key][i:i+batch_size])
+        val_embed_batch = np.vstack(val_embed[key])
+        similarity = sklearn.metrics.pairwise.cosine_similarity(pool_embed_batch, val_embed_batch)
+        similarity_per_sample = np.sum(similarity, axis=1)
+        similarities.append(similarity_per_sample)
+    key_similarity = 'similarity_to_val'
+    pool_embed[key_similarity] = np.hstack(similarities)
+    # get threshold
+    n = int(len(pool_embed) * fraction)
+    threshold = -np.sort(-pool_embed[key_similarity].values)[n]
+    uids=np.array([uid for uid in pool_embed[pool_embed[key_similarity] >= threshold]["uid"]])
+    return uids
+
+def load_uids_with_text_alignment(
+    pool_embedding_path: str,
+    val_embedding_path: str,
+    fraction: float,
+) -> np.ndarray:
+    """load in metadata with a threshold applied
+
+    Args:
+        metadata_dir_path (str): directory where metadata is stored
+        key (str): column we are interested in the parquet column store
+        threshold (float): threshold value to apply on the key column
+        fraction (float): fraction value to apply on the key column
+        num_workers (int): number of cpu workers, each of which processes a parquet
+        gcld3_en_filter (bool): if True, apply gcld3 english filtering (used for laion2b filter)
+                                Default False.
+
+    Returns:
+        np.ndarray: array of uids
+    """
+
+    # NOTE: assumes errors already checked as in baselines.py
+    key = "text_embedding"
+    pool_embed = load_embedding(pool_embedding_path, [key, "uid"])
+    val_embed = load_embedding(val_embedding_path, [key, "uid"])
+    batch_size=1000
+    similarities=[]
+    for i in range(0, len(pool_embed), batch_size):
+        pool_embed_batch = np.vstack(pool_embed[key][i:i+batch_size])
+        val_embed_batch = np.vstack(val_embed[key])
+        similarity = sklearn.metrics.pairwise.cosine_similarity(pool_embed_batch, val_embed_batch)
+        similarity_per_sample = np.sum(similarity, axis=1)
+        similarities.append(similarity_per_sample)
+    key_similarity = 'similarity_to_val'
+    pool_embed[key_similarity] = np.hstack(similarities)
+    # get threshold
+    n = int(len(pool_embed) * fraction)
+    threshold = -np.sort(-pool_embed[key_similarity].values)[n]
+    uids=np.array([uid for uid in pool_embed[pool_embed[key_similarity] >= threshold]["uid"]])
+    return uids
+
+
 def load_embedding(embedding_path:str, columns):
     embed = np.load(f"{embedding_path}",allow_pickle=True)
     embed_df=pd.DataFrame()
@@ -174,7 +256,7 @@ def get_centroid_ids_gpu(
         labels[i : i + batch_size] = matches.long()
     return labels
 
-def load_uids_with_image_filter(
+def load_uids_with_modality_filter(
     val_embedding_path: str,
     pool_embedding_path: str,
     # val_centroids_path: str,
@@ -182,12 +264,12 @@ def load_uids_with_image_filter(
     batch_size:int,
     threshold: Union[float,None]=None,
     fraction:Union[float, None] = None,
+    key:str="image_embedding"
 ) -> np.ndarray:
     
-    key = "image_embedding"
     sim_key = "similarity_score"
-    val_embed_df=load_embedding(val_embedding_path, [key,"uid",sim_key])
-    pool_embed_df=load_embedding(pool_embedding_path, [key,"uid",sim_key])
+    val_embed_df=load_embedding(val_embedding_path, [key,"uid"])
+    pool_embed_df=load_embedding(pool_embedding_path, [key,"uid"])
     val_embedding = torch.Tensor(val_embed_df[key])
     pool_embedding = torch.Tensor(pool_embed_df[key])
 
@@ -200,12 +282,12 @@ def load_uids_with_image_filter(
         batch_size=batch_size
         )
     target_centroid_ids = torch.unique(target_centroid_ids)
-    if fraction is not None:
-        threshold, _ = get_threshold(embedding_path=pool_embedding_path, 
-                                  key=sim_key, 
-                                  fraction=fraction)
-        uids=np.array([uid for uid in pool_embed_df[pool_embed_df[sim_key] >= threshold]["uid"]])
-        pool_embed_df = pool_embed_df[pool_embed_df["uid"].isin(uids)] 
+    # if fraction is not None:
+    #     threshold, _ = get_threshold(embedding_path=pool_embedding_path, 
+    #                               key=sim_key, 
+    #                               fraction=fraction)
+    #     uids=np.array([uid for uid in pool_embed_df[pool_embed_df[sim_key] >= threshold]["uid"]])
+    #     pool_embed_df = pool_embed_df[pool_embed_df["uid"].isin(uids)] 
     
     # caption filter - nEED TO ADD
     # mask = caption_filter(df, lang_detect_model)
@@ -293,12 +375,21 @@ def apply_filter(args: Any) -> None:
     #         args.num_workers,
     #     )
     elif args.name == "image_based":
-        uids = load_uids_with_image_filter(
+        uids = load_uids_with_modality_filter(
             val_embedding_path= args.val_embedding_path,
             pool_embedding_path=args.embedding_path,
             # val_centroids_path=args.centroids_path,
             pool_centroids_path=args.centroids_path,
             batch_size=16,
+        )
+    elif args.name == "text_based":
+        uids = load_uids_with_modality_filter(
+            val_embedding_path= args.val_embedding_path,
+            pool_embedding_path=args.embedding_path,
+            # val_centroids_path=args.centroids_path,
+            pool_centroids_path=args.centroids_path,
+            batch_size=16,
+            key="text_embedding"
         )
     elif args.name == "clip_score":
         print(f"threshold {args.threshold} and fraction {args.fraction}")
@@ -310,7 +401,7 @@ def apply_filter(args: Any) -> None:
         )
     elif args.name == "image_clip":
         print(f"threshold {args.threshold} and fraction {args.fraction}")
-        uids = load_uids_with_image_filter(
+        uids = load_uids_with_modality_filter(
             val_embedding_path= args.val_embedding_path,
             pool_embedding_path=args.embedding_path,
             # val_centroids_path=args.centroids_path,
@@ -320,6 +411,18 @@ def apply_filter(args: Any) -> None:
             threshold=args.threshold,
             fraction=args.fraction,
             # num_workers=args.num_workers,
+        )
+    elif args.name == "image_alignment":
+        uids = load_uids_with_image_alignment(
+            val_embedding_path= args.val_embedding_path,
+            pool_embedding_path=args.embedding_path,
+            fraction=args.fraction
+        )
+    elif args.name == "text_alignment":
+        uids = load_uids_with_text_alignment(
+            val_embedding_path= args.val_embedding_path,
+            pool_embedding_path=args.embedding_path,
+            fraction=args.fraction
         )
     else:
         raise ValueError(f"Unknown args.name argument: {args.name}")

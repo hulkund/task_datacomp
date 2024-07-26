@@ -8,6 +8,8 @@ sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
 from all_datasets.FMoW_dataset import FMoWDataset
 from all_datasets.COOS_dataset import COOSDataset
 from all_datasets.iWildCam_dataset import iWildCamDataset
+from all_datasets.CivilComments_dataset import CivilCommentsDataset
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, accuracy_score
 import pandas as pd
 
 def fix_embedding(embed):
@@ -27,11 +29,24 @@ def load_embedding(embedding_path:str, columns):
     return embed_df
 
 def get_dataset(dataset_name,split,subset_path=None,transform=None):
-    print(dataset_name)
     if dataset_name == "COOS":
         dataset = COOSDataset(split=split,subset_path=subset_path,transform=transform)
     elif dataset_name == "FMoW":
         dataset = FMoWDataset(split=split,subset_path=subset_path,transform=transform)
     elif dataset_name == "iWildCam":
         dataset = iWildCamDataset(split=split,subset_path=subset_path,transform=transform)
+    elif dataset_name == 'CivilComments':
+        dataset = CivilCommentsDataset(split=split, subset_path=subset_path,transform=transform)
     return dataset
+
+def get_metrics(predictions, ground_truth):
+    acc = accuracy_score(ground_truth, predictions)
+    precision = precision_score(ground_truth, predictions, average='macro')
+    recall = recall_score(ground_truth, predictions, average='macro')
+    conf_mat = confusion_matrix(ground_truth, predictions)
+    try:
+        avg_acc = np.mean(conf_mat.diagonal()/conf_mat.sum(axis=1))
+    except:
+        return None
+    metrics = {"acc":acc, "precision": precision, "recall":recall, "avg_acc":avg_acc}
+    return metrics
