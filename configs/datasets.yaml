@@ -1,0 +1,12 @@
+GeoDE:
+    task_list: ["test1", "test2", "test3", "test4"]
+AutoArborist:
+    task_list: ["test1", "test2", "test3", "test4"]
+iWildCam:
+    task_list: ["test1", "test2", "test3", "test4"]
+SelfDrivingCar:
+    task_list: ["test1", "test2", "test3", "test4"]
+FMoW:
+    task_list: ["test1", "test2", "test3", "test4"]
+
+

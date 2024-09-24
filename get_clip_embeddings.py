@@ -1,13 +1,11 @@
 import torch
 from transformers import CLIPProcessor, CLIPModel
-# from all_datasets.COOS_dataset import COOSDataset
-# from all_datasets.FMoW_dataset import FMoWDataset
-# from all_datasets.iWildCam_dataset import iWildCamDataset
 from PIL import Image
 import numpy as np
 import argparse
 from torch.utils.data import Dataset, DataLoader
 from baselines.utils import get_dataset
+import os
 
 
 # DATASET_NAMES = ["COOS","FMoW","iWildCam"]
@@ -21,15 +19,15 @@ def preprocess_texts(texts, clip_processor):
     text_input = clip_processor(texts, padding=True, return_tensors="pt")
     return text_input
 
-def preprocess_texts_civilcomments(texts, clip_processor, max_length):
-    inputs = []
-    for text in texts:
-        tokens = clip_processor.tokenizer.tokenize(text)
-        token_chunks = [tokens[i:i+max_length-2] for i in range(0, len(tokens), max_length-2)]
-        # token_chunks = [tokens[i:i+max_length] for i in range(0, len(tokens), max_length)]
-        chunked_texts = [clip_processor.tokenizer.convert_tokens_to_string(chunk) for chunk in token_chunks]
-        inputs.append(chunked_texts)
-    return inputs
+# def preprocess_texts_civilcomments(texts, clip_processor, max_length):
+#     inputs = []
+#     for text in texts:
+#         tokens = clip_processor.tokenizer.tokenize(text)
+#         token_chunks = [tokens[i:i+max_length-2] for i in range(0, len(tokens), max_length-2)]
+#         # token_chunks = [tokens[i:i+max_length] for i in range(0, len(tokens), max_length)]
+#         chunked_texts = [clip_processor.tokenizer.convert_tokens_to_string(chunk) for chunk in token_chunks]
+#         inputs.append(chunked_texts)
+#     return inputs
 
 def get_dataloader(dataset_name,split):
     dataset = get_dataset(dataset_name, split)
@@ -120,7 +118,7 @@ def main():
         "--dataset_name",
         type=str,
         required=False,
-        choices=["FMoW","COOS","iWildCam","CivilComments"],
+        choices=["FMoW","COOS","iWildCam","CivilComments","GeoDE","AutoArborist","SelfDrivingCar"],
         default="COOS",
         help="CLIP model type",
     )
@@ -131,16 +129,13 @@ def main():
     clip_processor = CLIPProcessor.from_pretrained(model_name)
     clip_model = CLIPModel.from_pretrained(model_name)
 
-    for split in ["train"]:#"test1","test2","test3","test4","train","val1","val2","val3","val4",]:
+    for split in ["train","test1","test2","test3","test4","val1","val2","val3","val4",]:
         dataloader = get_dataloader(args.dataset_name,split)
-        print("dataloader")
-        if args.dataset_name == "CivilComments":
-            embeddings = get_text_embeddings(dataloader, clip_processor, clip_model)
-        else:
-            embeddings = get_embeddings(dataloader, clip_processor, clip_model)
-        print("embeddings")
-        # dict_embed = fix_embedding(embeddings)
-        np.save("all_datasets/{}/embeddings/{}_embeddings.npy".format(args.dataset_name,split),embeddings)
+        filename="all_datasets/{}/embeddings/{}_embeddings.npy".format(args.dataset_name,split)
+        if not os.path.exists(filename):
+            print("getting embeddings for {}".format(split))
+            embeddings = get_all_embeddings(dataloader, clip_processor, clip_model)
+            np.save(filename,embeddings)
         # np.save("all_datasets/embeddings/{}_{}_embeddings.npy".format(dataset_name,split),dict_embed)
 
 if __name__ == "__main__":

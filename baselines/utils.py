@@ -9,6 +9,9 @@ from all_datasets.FMoW_dataset import FMoWDataset
 from all_datasets.COOS_dataset import COOSDataset
 from all_datasets.iWildCam_dataset import iWildCamDataset
 from all_datasets.CivilComments_dataset import CivilCommentsDataset
+from all_datasets.GeoDE_dataset import GeoDEDataset
+from all_datasets.AutoArborist_dataset import AutoArboristDataset
+from all_datasets.SelfDrivingCar_dataset import SelfDrivingCarDataset
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, accuracy_score
 import pandas as pd
 
@@ -30,20 +33,26 @@ def load_embedding(embedding_path:str, columns):
 
 def get_dataset(dataset_name,split,subset_path=None,transform=None):
     if dataset_name == "COOS":
-        dataset = COOSDataset(split=split,subset_path=subset_path,transform=transform)
+        dataset = COOSDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "FMoW":
-        dataset = FMoWDataset(split=split,subset_path=subset_path,transform=transform)
+        dataset = FMoWDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "iWildCam":
-        dataset = iWildCamDataset(split=split,subset_path=subset_path,transform=transform)
-    elif dataset_name == 'CivilComments':
-        dataset = CivilCommentsDataset(split=split, subset_path=subset_path,transform=transform)
+        dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform)
+    elif dataset_name == "GeoDE":
+        dataset = GeoDEDataset(split=split, subset_path=subset_path, transform=transform)
+    elif dataset_name == "AutoArborist":
+        dataset = AutoArboristDataset(split=split, subset_path=subset_path, transform=transform)
+    elif dataset_name == "CropHarvest":
+        dataset = CropHarvestDataset(split=split, subset_path=subset_path, transform=transform)
+    elif dataset_name == "SelfDrivingCar":
+        dataset = SelfDrivingCarDataset(split=split, subset_path=subset_path, transform=transform)
     return dataset
 
 def get_metrics(predictions, ground_truth):
     acc = accuracy_score(ground_truth, predictions)
-    precision = precision_score(ground_truth, predictions, average='macro')
-    recall = recall_score(ground_truth, predictions, average='macro')
-    conf_mat = confusion_matrix(ground_truth, predictions)
+    precision = precision_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
+    recall = recall_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
+    conf_mat = confusion_matrix(ground_truth, predictions,labels=np.unique(ground_truth))
     try:
         avg_acc = np.mean(conf_mat.diagonal()/conf_mat.sum(axis=1))
     except:

@@ -1,4 +1,4 @@
-#FMOW DATASET
+#CropHarvest DATASET
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
@@ -9,32 +9,30 @@ import numpy as np
 from PIL import Image
 import pandas as pd
 
-root_path='/data/vision/beery/scratch/neha/task-datacomp/all_datasets/FMoW/fmow_v1.1/'
-FILEPATHS = {'test1':'test1.csv',
-             'test2':'test2.csv',
-             'test3':'test3.csv',
-             'test4':'test4.csv',
+root_path='/data/vision/beery/scratch/neha/task-datacomp/all_datasets/AutoArborist/data'
+FILEPATHS = {'test1':'test-senegal.csv',
+             'test2':'test-tigray2020.csv',
+             'test3':'test-tigray2021.csv',
              'train':'train.csv',
-             'val1':'val1.csv',
-             'val2':'val2.csv',
-             'val3':'val3.csv',
-             'val4':'val4.csv'}
+             'val1':'val-senegal.csv',
+             'val2':'val-tigray2020.csv',
+             'val3':'val-tigray2021.csv'}
 
-class NormalizeTo01(object):
-    def __call__(self, image):
-        if isinstance(image, Image.Image):
-            image = np.array(image)
-        image = image.astype(np.float32) / 255.0
-        return torch.from_numpy(image).permute(2, 0, 1)
+# class NormalizeTo01(object):
+#     def __call__(self, image):
+#         if isinstance(image, Image.Image):
+#             image = np.array(image)
+#         image = image.astype(np.float32) / 255.0
+#         return torch.from_numpy(image).permute(2, 0, 1)
 
 
 class CropHarvestDataset(Dataset):
     def __init__(self, split, subset_path=None, transform=None):
         self.csv_path = root_path+FILEPATHS[split]
         self.data = pd.read_csv(self.csv_path)
-        if transform is None:
-            self.transform = transforms.Compose([NormalizeTo01(),])
-        else: self.transform=transform
+        # if transform is None:
+        #     self.transform = transforms.Compose([NormalizeTo01(),])
+        # else: self.transform=transform
         if subset_path:
             uids_to_keep=np.load(subset_path,allow_pickle=True)
             self.data = self.data[self.data['uid'].isin(uids_to_keep)]
@@ -42,7 +40,6 @@ class CropHarvestDataset(Dataset):
         self.total_samples = len(self.data)
         self.uids=self.data['uid']
         self.labels=self.data['label']
-        self.category_name=self.data['category']
         self.mapping=dict(zip(self.labels, self.category_name))
 
     def __len__(self):

@@ -144,7 +144,7 @@ def load_uids_with_image_alignment(
     key = "image_embedding"
     pool_embed = load_embedding(pool_embedding_path, [key, "uid"])
     val_embed = load_embedding(val_embedding_path, [key, "uid"])
-    batch_size=1000
+    batch_size=100
     similarities=[]
     for i in range(0, len(pool_embed), batch_size):
         pool_embed_batch = np.vstack(pool_embed[key][i:i+batch_size])

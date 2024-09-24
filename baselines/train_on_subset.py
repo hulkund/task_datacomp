@@ -1,180 +1,273 @@
-import numpy as np
-# import pandas as pd
+import os
+import clip
 import torch
 import sys
-import os
+sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from torchvision.models import resnet50, ResNet50_Weights
 
-
-import torchvision 
-# from transformers import CLIPProcessor, CLIPModel
-import timm
-from all_datasets.COOS_dataset import COOSDataset
-from all_datasets.FMoW_dataset import FMoWDataset
-from torch.utils.data import DataLoader
-from torch.nn import CrossEntropyLoss
-import torch.optim as optim
-import torch.nn as nn
-from tqdm import tqdm
 import argparse
+import numpy as np
+import torch.nn as nn
+from sklearn.linear_model import LogisticRegression
+from torch.utils.data import DataLoader, random_split
+import torch.optim as optim
+from tqdm import tqdm
+import json
+from utils import get_dataset
+import pdb
+from utils import get_metrics
+import yaml
+import pdb
 
+# Load the model
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print("cuda")
 
-def save_model(model, epoch, save_path):
-    model.save_pretrained(save_path+f"model.pt")
-    # processor.save_pretrained(save_path+f"processor.pt")
+def get_train_val_dl(dataset_name, subset_path, preprocess, batch_size):
+    dataset = get_dataset(dataset_name=dataset_name,
+                            split="train",
+                            subset_path=subset_path,
+                            transform=preprocess)
+    train_size = int(0.9 * len(dataset))
+    test_size = len(dataset) - train_size
+    train_dataset, val_dataset = random_split(dataset, [train_size, test_size])
+    train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, num_workers=1, shuffle=True)
+    val_dataloader = DataLoader(dataset=val_dataset, batch_size=batch_size, num_workers=1, shuffle=False)
+    train_labels = torch.tensor(dataset.labels)[train_dataset.indices]
+    num_classes = train_labels.unique().numel()
+    return train_dataloader, val_dataloader, num_classes
 
-def get_train_dataset(dataset_name, split, batch_size, subset_path):
-    if dataset_name == "COOS":
-        dataset = COOSDataset(split)
-    elif dataset_name == "FMoW":
-        dataset = FMoWDataset(split,transform=preprocess)
-    # elif dataset_name == "iWildCam":
-    #     continue #TODO
-    train_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    return dataset, train_dataloader
+def get_model_processor(finetune_type):
+    if finetune_type=="linear_probe":
+        model, preprocess = clip.load('ViT-B/32', device)
+        return model, preprocess
+    elif finetune_type=="full_finetune":
+        weights = ResNet50_Weights.DEFAULT
+        model = resnet50(weights=weights)
+        preprocess = weights.transforms()
+        return model, preprocess
 
-def get_val_dataset(dataset_name, split, batch_size):
-    if dataset_name == "COOS":
-        dataset = COOSDataset('val1')
-    val_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    return dataset, val_dataloader
-
-
-def get_model_processor(num_classes):
-    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    model.train()
-    model.text_projection = torch.nn.Identity()
-    model.vision_projection = torch.nn.Linear(in_features=512, out_features=num_classes)
-    model = timm.create_model('vit_base_patch16_224.dino', pretrained=True)
-    return model, processor
-
-# def get_model(num_classes):
-#     model = timm.create_model('vit_base_patch16_224.dino', pretrained=True)
-#     model.classifier = nn.Linear(768, num_classes).to(device)  a linear layer for classification and move to GPU
+def get_features(dataset_name, split, subset_path):
+    device="cuda"
+    if 'task' in split:
+        split='test'+split[4]
+    embed=np.load(f'/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}//embeddings/{split}_image_label_embed.npz')
+    if subset_path:
+        subset=np.load(subset_path,allow_pickle=True)
+        id_to_index = {id_: idx for idx, id_ in enumerate(subset)}
+        mask = [id_to_index[id_] for id_ in subset if id_ in id_to_index]
+        features=embed['features'][mask]
+        labels=embed['labels'][mask]
+    else:
+        features=embed['features']
+        labels=embed['labels']
+    return features, labels
     
-#     return model
-    
+def train(model, 
+          preprocess,
+          subset_path,
+          dataset_name: str = "iWildCam",
+          finetune_type: str = "linear_probe",
+          num_epochs: int = 30, 
+          lr: float = 0.01,
+          C: float = 0.75,
+          batch_size: int = 32):
+    if finetune_type=="linear_probe":
+        train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
+        classifier = LogisticRegression(random_state=0, C=0.75, max_iter=1000, verbose=1)
+        classifier.fit(train_features, train_labels)
+        return classifier
+    elif finetune_type == "full_finetune":
+        if finetune_type=="lora_full_finetune": model = model.lora()
+        train_dataloader, val_dataloader, num_classes = get_train_val_dl(dataset_name=dataset_name, 
+                                                        subset_path=subset_path, 
+                                                        preprocess=preprocess, 
+                                                        batch_size=batch_size)
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+        train_full_finetune(model, train_dataloader, val_dataloader, num_epochs, criterion, optimizer)
+    return model
 
-def train(train_dataloader, model, optimizer, num_epochs, device):
-    loss_function = CrossEntropyLoss()
-    model.to(device)
-    model.train()
-    for images, texts, labels, uids in train_dataloader:
-        images= images.to(device)
-        # texts=texts.to(device)
-        # with torch.no_grad():
-        #     inputs = processor(text=texts, images=images, return_tensors="pt", padding=True)
-        # logits = model(**inputs).logits_per_image
-        logits = model(images)
-        loss = loss_function(logits, labels)
-        loss.backward()
-        optimizer.step()
-        loss_total += loss.item() 
-        pred_label = torch.argmax(logits, dim=1)
-        oa = torch.mean((pred_label == labels).float())
-        a_total += oa.item()
-    loss_total /= len(dataLoader)           
-    oa_total /= len(dataLoader)
-    return loss_total, oa_total
+def evaluate(model,
+             preprocess,
+             dataset_name: str = "iWildCam",
+             finetune_type: str = "linear_probe",
+             task_name: str = "",
+             batch_size: int = 32):
+    if finetune_type=="linear_probe":
+        test_features, test_labels = get_features(dataset_name=dataset_name, split=task_name, subset_path=None)
+        predictions = model.predict(test_features)
+        metrics = get_metrics(predictions=predictions, ground_truth=test_labels)
+    else:
+        test_dataset = get_dataset(dataset_name=dataset_name, split=task_name, subset_path=None, transform=preprocess)
+        test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, num_workers=1)
+        metrics = evaluate_full_finetune(model, test_dataloader)
+    return metrics
 
-def validate(val_dataloader, model, device):
-    '''
-        Validation function. Note that this looks almost the same as the training
-        function, except that we don't use any optimizer or gradient steps.
-    '''
-    model.to(device)
+def evaluate_full_finetune(model, test_dataloader):
+    device="cuda"
     model.eval()
-    loss_function = nn.CrossEntropyLoss()   
-    loss_total, oa_total = 0.0, 0.0     
+    correct = 0
+    total = 0
+    predicted_all = []
+    labels_all = []
+    with torch.no_grad():
+        for data in test_dataloader:
+            images,_, labels,_ = data
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            predicted_all.extend(predicted.cpu())
+            labels_all.extend(labels.cpu())
+    metrics = get_metrics(predictions=predicted_all, ground_truth=labels_all)
+    return metrics 
 
-    with torch.no_grad():               
-        for data, texts, labels, uids in val_dataloader:
-            data, labels, texts = data.to(device), labels.to(device), texts.to(device)
-            # with torch.no_grad():
-            #     inputs = processor(text=texts, images=images, return_tensors="pt", padding=True)
-            logits = model(images)#.logits_per_image
-            loss = loss_function(logits, labels)
-            loss_total += loss.item()
-            pred_label = torch.argmax(logits, dim=1)
-            oa = torch.mean((pred_label == labels).float())
-            oa_total += oa.item()
-            progressBar.set_description(
-                '[Val ] Loss: {:.4f}; OA: {:.4f}%'.format(
-                    loss_total/(idx+1),
-                    100*oa_total/(idx+1)
-                )
-            )
-            progressBar.update(1)
-    progressBar.close()
-    loss_total /= len(dataLoader)
-    oa_total /= len(dataLoader)
-    return loss_total, oa_total
+def train_full_finetune(model, 
+                        train_dataloader, 
+                        val_dataloader, 
+                        num_epochs, 
+                        criterion, 
+                        optimizer):
+    device='cuda'
+    model.to(device)
+    best_val_loss=np.inf
+    patience=2
+    patience_counter=0
+    for epoch in range(num_epochs):
+        model.train()
+        running_loss = 0.0
+        # training loop
+        for i, data in tqdm(enumerate(train_dataloader, 0),total=len(train_dataloader)):
+            inputs, _, labels, _ = data
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+        # Validation loop
+        model.eval()
+        val_loss = 0.0
+        correct, total = 0, 0
+        with torch.no_grad():
+            for data in val_dataloader:
+                images, _,  labels, _ = data
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        # check for early stopping
+        if val_loss < best_val_loss:
+            best_val_loss=val_loss
+            patience_counter=0
+        else:
+            patience_counter+=1
+        if patience_counter>=patience:
+            print(f"early stopping at epoch {epoch}")
+            break
+        print(f"Epoch {epoch + 1} validation loss: {val_loss / len(val_dataloader):.3f}, "
+          f"accuracy: {100 * correct / total:.2f}%")
+    return model
 
 def main():
-    parser = argparse.ArgumentParser(description='Train deep learning model.')
-    # parser.add_argument('--config', help='Path to config file')
-    parser.add_argument('--learning_rate', type=float, help='Learning rate for training', default=0.001)
-    parser.add_argument('--batch_size', type=int, help='Batch size for training', default=128)
-    parser.add_argument('--num_epochs', type=int, help='Number of epochs for training', default=200)
-    parser.add_argument('--dataset', type=str, help='Name of dataset')
-    parser.add_argument('--model_save_path', type=str)
-    parser.add_argument('--subset_path',type=str, help="subset filepath")
+    parser = argparse.ArgumentParser(description="")
+    
+    # parser.add_argument(
+    #     "--model_name",
+    #     type=str,
+    #     required=False,
+    #     choices=["openai/clip-vit-base-patch32"],
+    #     default="openai/clip-vit-base-patch32",
+    #     help="CLIP model type",
+    # )
+    parser.add_argument(
+        "--dataset_name",
+        type=str,
+        required=True,
+        choices=["FMoW","COOS","iWildCam","GeoDE","CropHarvest","AutoArborist","SelfDrivingCar"],
+        default="iWildCam",
+        help="Dataset name",
+    )
+    parser.add_argument(
+        "--subset_path",
+        type=str,
+        required=True,
+        help="subset uid path",
+    )
+    parser.add_argument(
+        "--dataset_config",
+        type=str,
+        required=True,
+        help="dataset config",
+    )
+    parser.add_argument(
+        "--lr",
+        type=str,
+        required=False,
+        help="lr",
+    )
+    parser.add_argument(
+        "--finetune_type",
+        type=str,
+        required=True,
+        choices=["linear_probe","lora_full_finetune","full_finetune"],
+        help="which type of finetuning is being done",
+    )
+    parser.add_argument('--outputs_path', type=str,required=True)
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        required=False,
+        default=32,
+        help="which type of finetuning is being done",
+    )
+    parser.add_argument(
+        "--num_epochs",
+        type=int,
+        required=False,
+        default=30,
+        help="which type of finetuning is being done",
+    )
     args = parser.parse_args()
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model_init, preprocess = get_model_processor(args.finetune_type)
+
+    with open(args.dataset_config) as f:
+        dataset_config = yaml.safe_load(f)
+    task_list = dataset_config[args.dataset_name]['task_list']
     
-    # loading things
-    train_dataset, train_dataloader = get_train_dataset(dataset_name=args.dataset,
-                                                         split="train",
-                                                         batch_size=args.batch_size,
-                                                        subset_path=args.subset_path)
-    # NEED TO FIX
-    val_dataset, val_dataloader = get_val_dataset(dataset_name=args.dataset,
-                                                split=None,
-                                                batch_size=args.batch_size)
-    model = get_model(num_classes=train_dataset.num_classes)
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    # training
+    trained_model = train(dataset_name=args.dataset_name,
+          finetune_type=args.finetune_type,
+          num_epochs=int(args.num_epochs),
+          batch_size=int(args.batch_size),
+          lr=float(args.lr),
+          model=model_init,
+          preprocess=preprocess,
+          subset_path=args.subset_path)
+    
+    # testing, need to check if its happening on all the tasks or just one
+    subset_filename=args.subset_path.split('/')[-1]
+    if 'task' in subset_filename or 'test' in subset_filename:
+        task_name = subset_filename.split('_')[0]
+        print(f"testing on {task_name}")
+        metrics = evaluate(model=trained_model, dataset_name=args.dataset_name, preprocess=preprocess, finetune_type=args.finetune_type, task_name=task_name, batch_size=int(args.batch_size))
+        with open(args.outputs_path+f"{task_name}_{args.finetune_type}_lr={args.lr}_metrics.json", "w") as json_file:
+            json.dump(metrics, json_file, indent=4)
+    else:
+        for task_name in task_list:
+            metrics = evaluate(model=trained_model, dataset_name=args.dataset_name, finetune_type=args.finetune_type, preprocess=preprocess, task_name=task_name, batch_size=int(args.batch_size))
+            with open(args.outputs_path+f"{task_name}_{args.finetune_type}_lr={args.lr}_metrics.json", "w") as json_file:
+                json.dump(metrics, json_file, indent=4)
+            
 
-
-    # early stopping
-    patience = 3 
-    early_stopping_counter = 0
-
-    # setting variables
-    best_val_loss = float('inf')
-    best_epoch = None
-    best_model = None
-    num_epochs = args.num_epochs
-    current_epoch=0
-
-    while current_epoch < num_epochs:
-        current_epoch += 1
-        loss_train, oa_train = train(train_dataloader=train_dataloader,
-                                    model=model,
-                                    # processor=processor, 
-                                    optimizer=optimizer,
-                                    num_epochs=num_epochs,
-                                    device=device)
-        loss_val, oa_val = validate(val_dataloader=val_dataloader, 
-                                    model=model, 
-                                    device=device)
-        if loss_val < best_val_loss:
-            best_val_loss = loss_val
-            best_epoch = current_epoch
-            best_model = model
-            name = f'Best_Epoch_{current_epoch}_Loss_{round(loss_val, 2)}'
-            early_stopping_counter = 0  
-        else:
-            early_stopping_counter += 1  
-            if early_stopping_counter >= patience:
-                print("Early stopping: Validation loss hasn't decreased for {} epochs.".format(patience))
-                if best_val_loss < float('inf'):
-                    save_model(model=best_model, save_path=args.model_save_path, epoch=best_epoch)
-
-    if best_val_loss < float('inf'):
-        save_model(model=best_model, save_path=args.model_save_path, epoch=best_epoch)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-
