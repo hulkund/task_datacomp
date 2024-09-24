@@ -4,3 +4,8 @@ experiments/
 slurm/
 .ipynb_checkpoints/
 baselines/.ipynb_checkpoints/
+otdd/
+.ipynb_checkpoints/
+baselines/__pycache__/
+experiments_again/
+baselines/slurm/
