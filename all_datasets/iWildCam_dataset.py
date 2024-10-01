@@ -10,24 +10,17 @@ from PIL import Image
 import pandas as pd
 
 root_path='/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/'
-FILEPATHS = {'test1':'test1.csv',
-             'test2':'test2.csv',
-             'test3':'test3.csv',
-             'test4':'test4.csv',
+FILEPATHS = {'test1':'task1_id.csv',
+             'test2':'task2_ood.csv',
+             'test3':'task3_id.csv',
+             'test4':'task4_id.csv',
+             'test5':'task5.csv',
              'train':'train.csv',
-             'val1':'val1.csv',
-             'val2':'val2.csv',
-             'val3':'val3.csv',
-             'val4':'val4.csv'}
-
-# class RescaleTo01(object):
-#     def __init__(self, min_value, max_value):
-#         self.min_value = min_value
-#         self.max_value = max_value
-
-#     def __call__(self, sample):
-#         sample = (sample - self.min_value) / (self.max_value - self.min_value)  # Rescale to [0, 1]
-#         return sample
+             'val1':'val1_id.csv',
+             'val2':'val2_ood.csv',
+             'val3':'val3_id.csv',
+             'val4':'val4_id.csv',
+             'val5':'val5_ood.csv'}
 
 class NormalizeTo01(object):
     def __call__(self, image):
