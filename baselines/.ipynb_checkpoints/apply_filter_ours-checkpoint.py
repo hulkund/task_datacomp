@@ -5,6 +5,7 @@ from functools import partial
 from multiprocessing import Pool
 from queue import Empty
 from typing import Any, List, Set, Tuple, Union
+import heapq
 
 import fasttext
 import fsspec
@@ -17,6 +18,10 @@ from nltk.corpus import wordnet
 from tqdm import tqdm
 import pdb
 import sklearn
+import yaml
+import sys
+sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
+from baselines.utils import FaissIndexIVFFlat
 
 def get_fasttext_language(text: str, lang_detect_model: Any) -> str:
     """helper to detect language of a piece of text (fasttext)
@@ -144,12 +149,14 @@ def load_uids_with_image_alignment(
     key = "image_embedding"
     pool_embed = load_embedding(pool_embedding_path, [key, "uid"])
     val_embed = load_embedding(val_embedding_path, [key, "uid"])
-    batch_size=1000
+    batch_size=100
+    # set k to be 10 then 20, etc
     similarities=[]
     for i in range(0, len(pool_embed), batch_size):
         pool_embed_batch = np.vstack(pool_embed[key][i:i+batch_size])
         val_embed_batch = np.vstack(val_embed[key])
         similarity = sklearn.metrics.pairwise.cosine_similarity(pool_embed_batch, val_embed_batch)
+        # needs to be changed 
         similarity_per_sample = np.sum(similarity, axis=1)
         similarities.append(similarity_per_sample)
     key_similarity = 'similarity_to_val'
@@ -282,16 +289,6 @@ def load_uids_with_modality_filter(
         batch_size=batch_size
         )
     target_centroid_ids = torch.unique(target_centroid_ids)
-    # if fraction is not None:
-    #     threshold, _ = get_threshold(embedding_path=pool_embedding_path, 
-    #                               key=sim_key, 
-    #                               fraction=fraction)
-    #     uids=np.array([uid for uid in pool_embed_df[pool_embed_df[sim_key] >= threshold]["uid"]])
-    #     pool_embed_df = pool_embed_df[pool_embed_df["uid"].isin(uids)] 
-    
-    # caption filter - nEED TO ADD
-    # mask = caption_filter(df, lang_detect_model)
-    # uids = pool_embed_df.uid[mask]
     uids=pool_embed_df.uid
     print(len(uids))
     candidate_centroid_ids = get_centroid_ids_gpu(
@@ -311,14 +308,6 @@ def load_uids_with_modality_filter(
     print(len(uids_to_keep))
     return np.array(uids_to_keep)
 
-# def image_filter_helper(
-#     pool_centroids: torch.Tensor,
-#     target_centroid_ids: torch.Tensor,
-#     batch_size: int,
-#     threshold: Union[float, None] = None,
-# )
-
-
 
 def load_uids(embedding_path: str) -> np.ndarray:
     """helper to read a embedding and load uids
@@ -336,9 +325,107 @@ def load_uids_with_random_filter(embedding_path: str, subset_percent: float) -> 
     embed_df=load_embedding(embedding_path, columns=["uid"])
     uids_selected=embed_df.sample(frac=subset_percent,random_state=42)
     return np.array(uids_selected).squeeze(axis=1)
-    
 
-# THEN AT THE END, THE MAIN FUNCTION
+def load_uids_with_tsds(
+    val_embedding_path: str, 
+    pool_embedding_path: str,
+) -> np.ndarray:
+
+    key = "image_embedding"
+    query_df=load_embedding(val_embedding_path, [key,"uid"])
+    candidate_df=load_embedding(pool_embedding_path, [key,"uid"])
+    xq=np.stack(query_df["image_embedding"])
+    xb=np.stack(candidate_df["image_embedding"])
+
+    with open("baselines/tsds_data/config.yaml", "r") as file:
+        config = yaml.safe_load(file)
+    
+    SAMPLE_SIZE = 1000#config["sample_size"]
+    MAX_K = config["max_K"]
+    KDE_K = config["kde_K"]
+    SIGMA = config["sigma"]
+    ALPHA = config["alpha"]
+    C = config["C"]
+
+    MAX_K = min(MAX_K, xb.shape[0] // 10)
+    KDE_K = min(KDE_K, xb.shape[0] // 10)
+    
+    # logging.info(f"Starting building index for the candidate examples.")
+    index = FaissIndexIVFFlat(xb)
+    
+    # logging.info(f"Start prefetching {MAX_K}-nearest neighbors for each query example.")
+    top_dists, top_indices = index.search(xq, MAX_K)
+    top_indices = top_indices.astype(int)
+    sorted_indices = np.argsort(top_dists, axis=-1)
+    static_indices = np.indices(top_dists.shape)[0]
+    top_dists = np.sqrt(top_dists[static_indices, sorted_indices])
+    # top_indices[i][j] is the index of the jth nearest neighbor
+    # (among the candidates) of the ith query example
+    top_indices = top_indices[static_indices, sorted_indices]
+    
+    # top_kde[i][j] is the KDE of the jth nearest neighbor of the ith query example
+    if SIGMA == 0:
+        # logging.info("Sigma is zero, KDE (kernel density estimation) set to 1 for all the points.")
+        top_kdes = np.ones_like(top_indices)
+    else:
+        # logging.info(f"Start computing KDE (kernel density estimation), neighborhood size: {KDE_K}.")
+        top_indices_set = list(set([i for i in top_indices.reshape(-1)]))
+        top_features = xb[top_indices_set]
+        index_for_kde = FaissIndexIVFFlat(top_features)
+        D2, I = index_for_kde.search(top_features, KDE_K)
+        kernel = 1 - D2 / (SIGMA ** 2)
+        # logging.info(f'A point has {(kernel > 0).sum(axis=-1).mean() - 1} near-duplicates on average.')
+        kernel = kernel * (kernel > 0)
+        kde = kernel.sum(axis=-1)
+        kde_map = {top_indices_set[i]:kde[i] for i in range(len(top_indices_set))}
+        kde_mapfunc = np.vectorize(lambda t: kde_map[t])
+        top_kdes = kde_mapfunc(top_indices)
+            
+    # logging.info("Start computing the probability assignment.")
+    M, N = top_indices.shape[0], xb.shape[0]
+    lastK = [0] * M
+    heap = [(1.0 / top_kdes[j][0], 0, j) for j in range(M)]
+    heapq.heapify(heap)
+    dist_weighted_sum = [top_dists[j][0] / top_kdes[j][0] for j in range(M)]
+    s = 0
+    cost = np.zeros(M)
+    total_cost = 0
+    while len(heap) > 0:
+        count, curr_k, curr_j = heapq.heappop(heap)
+        s = count
+        # if we increase s by any positive amount, the 0, 1, ..., curr_k has to transport probability mass to curr_k + 1
+        total_cost -= cost[curr_j]
+        cost[curr_j] = top_dists[curr_j][curr_k + 1] * count - dist_weighted_sum[curr_j]
+        total_cost += cost[curr_j]
+        # If the condition breaks, the current s will be the final s
+        if ALPHA / C * total_cost >= (1 - ALPHA) * M:
+            break
+        lastK[curr_j] = curr_k
+        if curr_k < MAX_K - 2:
+            count += 1.0 / top_kdes[curr_j][curr_k + 1]
+            heapq.heappush(heap, (count, curr_k + 1, curr_j))
+            dist_weighted_sum[curr_j] += top_dists[curr_j][curr_k + 1] / top_kdes[curr_j][curr_k + 1]
+    global_probs = np.zeros(N)
+    for j in range(M):
+        prob_sum = 0
+        for k in range(lastK[j] + 1):
+            global_probs[top_indices[j][k]] += 1 / M / s / top_kdes[j][k]
+            prob_sum += 1 / M / s / top_kdes[j][k]
+        global_probs[top_indices[j][lastK[j] + 1]] += max(1.0 / M - prob_sum, 0)
+        assert 1.0 / M - prob_sum >= -1e-9, f'{1.0 / M - prob_sum}'
+        assert (1.0 / M - prob_sum) * top_kdes[j][lastK[j] + 1] * M * s <= 1 + 1e-9 or lastK[j] == MAX_K - 2, f'{(1.0 / M - prob_sum) * top_kdes[j][lastK[j] + 1] * M * s}'
+    
+    # logging.info(f"Start sampling. Sample size: {SAMPLE_SIZE}.")
+    sample_times = np.random.multinomial(SAMPLE_SIZE, global_probs)
+    sample_indices = []
+    for i in range(sample_times.shape[0]):
+        sample_indices.extend([i] * sample_times[i])
+
+    uid_array = candidate_df["uid"].to_numpy()
+    selected_uids = np.array([uid_array[i] for i in sample_indices])
+    return selected_uids
+    
+    
 def apply_filter(args: Any) -> None:
     """function to route the args to the proper baseline function
 
@@ -367,13 +454,6 @@ def apply_filter(args: Any) -> None:
             embedding_path=args.embedding_path,
             subset_percent=args.fraction
         )
-    # get rid of this shit
-    # elif args.name == "text_based":
-    #     nltk.download("wordnet")
-    #     uids = load_uids_with_text_entity(
-    #         args.metadata_dir,
-    #         args.num_workers,
-    #     )
     elif args.name == "image_based":
         uids = load_uids_with_modality_filter(
             val_embedding_path= args.val_embedding_path,
@@ -423,6 +503,11 @@ def apply_filter(args: Any) -> None:
             val_embedding_path= args.val_embedding_path,
             pool_embedding_path=args.embedding_path,
             fraction=args.fraction
+        )
+    elif args.name == "tsds":
+        uids = load_uids_with_tsds(
+            val_embedding_path=args.val_embedding_path,
+            pool_embedding_path=args.embedding_path
         )
     else:
         raise ValueError(f"Unknown args.name argument: {args.name}")

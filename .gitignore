@@ -1,3 +1,4 @@
+all_datasets/iWildCam/iwildcam_v2_0
 all_datasets/
 datacomp/
 experiments/
@@ -9,3 +10,8 @@ otdd/
 baselines/__pycache__/
 experiments_again/
 baselines/slurm/
+*.ipynb
+CLUE/
+baselines/tsds_data/
+baselines/old_files/
+baselines/runs/

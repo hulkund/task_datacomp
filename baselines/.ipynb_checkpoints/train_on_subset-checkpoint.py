@@ -1,180 +1,171 @@
-import numpy as np
-# import pandas as pd
+import os
 import torch
 import sys
-import os
+sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-
-import torchvision 
-# from transformers import CLIPProcessor, CLIPModel
-import timm
-from all_datasets.COOS_dataset import COOSDataset
-from all_datasets.FMoW_dataset import FMoWDataset
-from torch.utils.data import DataLoader
-from torch.nn import CrossEntropyLoss
-import torch.optim as optim
-import torch.nn as nn
-from tqdm import tqdm
 import argparse
+import numpy as np
+import torch.nn as nn
+from sklearn.linear_model import LogisticRegression
+from torch.utils.data import DataLoader, random_split, Subset
+from sklearn.model_selection import train_test_split
+from model_backbone import get_lora_model, get_model_processor, get_features
+import torch.optim as optim
+from tqdm import tqdm
+import json
+import timm
+from utils import get_dataset, get_metrics, get_train_val_dl
+from utils import get_metrics
+import yaml
+import pandas as pd
+import pdb
+from train_engine import TrainEngine
 
-
-def save_model(model, epoch, save_path):
-    model.save_pretrained(save_path+f"model.pt")
-    # processor.save_pretrained(save_path+f"processor.pt")
-
-def get_train_dataset(dataset_name, split, batch_size, subset_path):
-    if dataset_name == "COOS":
-        dataset = COOSDataset(split)
-    elif dataset_name == "FMoW":
-        dataset = FMoWDataset(split,transform=preprocess)
-    # elif dataset_name == "iWildCam":
-    #     continue #TODO
-    train_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    return dataset, train_dataloader
-
-def get_val_dataset(dataset_name, split, batch_size):
-    if dataset_name == "COOS":
-        dataset = COOSDataset('val1')
-    val_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    return dataset, val_dataloader
-
-
-def get_model_processor(num_classes):
-    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    model.train()
-    model.text_projection = torch.nn.Identity()
-    model.vision_projection = torch.nn.Linear(in_features=512, out_features=num_classes)
-    model = timm.create_model('vit_base_patch16_224.dino', pretrained=True)
-    return model, processor
-
-# def get_model(num_classes):
-#     model = timm.create_model('vit_base_patch16_224.dino', pretrained=True)
-#     model.classifier = nn.Linear(768, num_classes).to(device)  a linear layer for classification and move to GPU
-    
-#     return model
-    
-
-def train(train_dataloader, model, optimizer, num_epochs, device):
-    loss_function = CrossEntropyLoss()
-    model.to(device)
-    model.train()
-    for images, texts, labels, uids in train_dataloader:
-        images= images.to(device)
-        # texts=texts.to(device)
-        # with torch.no_grad():
-        #     inputs = processor(text=texts, images=images, return_tensors="pt", padding=True)
-        # logits = model(**inputs).logits_per_image
-        logits = model(images)
-        loss = loss_function(logits, labels)
-        loss.backward()
-        optimizer.step()
-        loss_total += loss.item() 
-        pred_label = torch.argmax(logits, dim=1)
-        oa = torch.mean((pred_label == labels).float())
-        a_total += oa.item()
-    loss_total /= len(dataLoader)           
-    oa_total /= len(dataLoader)
-    return loss_total, oa_total
-
-def validate(val_dataloader, model, device):
-    '''
-        Validation function. Note that this looks almost the same as the training
-        function, except that we don't use any optimizer or gradient steps.
-    '''
-    model.to(device)
-    model.eval()
-    loss_function = nn.CrossEntropyLoss()   
-    loss_total, oa_total = 0.0, 0.0     
-
-    with torch.no_grad():               
-        for data, texts, labels, uids in val_dataloader:
-            data, labels, texts = data.to(device), labels.to(device), texts.to(device)
-            # with torch.no_grad():
-            #     inputs = processor(text=texts, images=images, return_tensors="pt", padding=True)
-            logits = model(images)#.logits_per_image
-            loss = loss_function(logits, labels)
-            loss_total += loss.item()
-            pred_label = torch.argmax(logits, dim=1)
-            oa = torch.mean((pred_label == labels).float())
-            oa_total += oa.item()
-            progressBar.set_description(
-                '[Val ] Loss: {:.4f}; OA: {:.4f}%'.format(
-                    loss_total/(idx+1),
-                    100*oa_total/(idx+1)
-                )
-            )
-            progressBar.update(1)
-    progressBar.close()
-    loss_total /= len(dataLoader)
-    oa_total /= len(dataLoader)
-    return loss_total, oa_total
+# Load the model
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print("cuda")
+        
 
 def main():
-    parser = argparse.ArgumentParser(description='Train deep learning model.')
-    # parser.add_argument('--config', help='Path to config file')
-    parser.add_argument('--learning_rate', type=float, help='Learning rate for training', default=0.001)
-    parser.add_argument('--batch_size', type=int, help='Batch size for training', default=128)
-    parser.add_argument('--num_epochs', type=int, help='Number of epochs for training', default=200)
-    parser.add_argument('--dataset', type=str, help='Name of dataset')
-    parser.add_argument('--model_save_path', type=str)
-    parser.add_argument('--subset_path',type=str, help="subset filepath")
-    args = parser.parse_args()
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument(
+        "--dataset_name",
+        type=str,
+        required=True,
+        choices=["FMoW","COOS","iWildCam","GeoDE","CropHarvest","AutoArborist","SelfDrivingCar","ReID"],
+        default="iWildCam",
+        help="Dataset name",
+    )
+    parser.add_argument(
+        "--subset_path",
+        type=str,
+        required=True,
+        help="subset uid path",
+    )
+    parser.add_argument(
+        "--dataset_config",
+        type=str,
+        required=True,
+        help="dataset config",
+    )
+    parser.add_argument(
+        "--lr",
+        type=str,
+        required=False,
+        help="lr",
+    )
+    parser.add_argument(
+        "--finetune_type",
+        type=str,
+        required=True,
+        choices=["linear_probe","lora_finetune_vit","full_finetune_resnet50","full_finetune_resnet101"],
+        help="which type of finetuning is being done",
+    )
+    parser.add_argument(
+        '--outputs_path', 
+        type=str,required=True)
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        required=False,
+        default=32,
+    )
+    parser.add_argument(
+        "--num_epochs",
+        type=int,
+        required=False,
+        default=50,
+        help="num_epochs",
+    )
+    parser.add_argument(
+        "--checkpoint_path",
+        type=str,
+        required=True,
+        help="base path to save model",
+    )
+    parser.add_argument(
+        "--training_task",
+        type=str,
+        required=True,
+        choices=["classification","regression","detection","reid"]
+    )
     
-    # loading things
-    train_dataset, train_dataloader = get_train_dataset(dataset_name=args.dataset,
-                                                         split="train",
-                                                         batch_size=args.batch_size,
-                                                        subset_path=args.subset_path)
-    # NEED TO FIX
-    val_dataset, val_dataloader = get_val_dataset(dataset_name=args.dataset,
-                                                split=None,
-                                                batch_size=args.batch_size)
-    model = get_model(num_classes=train_dataset.num_classes)
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    args = parser.parse_args()
+    model, preprocess = get_model_processor(args.finetune_type)
+
+    with open(args.dataset_config) as f:
+        dataset_config = yaml.safe_load(f)
+    task_list = dataset_config[args.dataset_name]['task_list']
+    
+    # getting data
+    dataset = get_dataset(dataset_name=args.dataset_name, 
+                          split='train', 
+                          subset_path=args.subset_path, 
+                          transform=preprocess)
+    if args.training_task == 'classification':
+        unique_values = dataset.labels.unique()  # Get unique values
+        value_to_index = {value: idx for idx, value in enumerate(unique_values)}
+        dataset.data['label'] = dataset.data['label'].map(value_to_index)
+        dataset.data.dropna(subset=['label'],inplace=True)
+        dataset.data = dataset.data.reset_index()
+        dataset.labels=dataset.data['label']
+    train_dataset, val_dataset, train_dataloader, val_dataloader, num_classes = get_train_val_dl(dataset=dataset, 
+                                                                                                 batch_size=int(args.batch_size),
+                                                                                                 training_task=args.training_task)
+
+    # need to check if its happening on all the tasks or just one - set "task list" accordingly
+    subset_filename=args.subset_path.split('/')[-1]
+    if 'task' in subset_filename or 'test' in subset_filename:
+        task_name = subset_filename.split('_')[0]
+        task_list = [task_name]
+
+    # training  
+    train_engine = TrainEngine(training_task=args.training_task,
+                              train_dl=train_dataloader, 
+                              val_dl=val_dataloader,
+                              finetune_type=args.finetune_type,
+                              num_epochs=int(args.num_epochs),
+                              batch_size=int(args.batch_size),
+                              dataset_name=args.dataset_name,
+                              lr=float(args.lr),
+                              model=model,
+                              preprocess=preprocess,
+                              subset_path=args.subset_path,
+                              num_classes=num_classes,
+                              checkpoint_path=args.checkpoint_path)
+    
+    model = train_engine.train()
+
+    # load the best checkpoint for model
+    checkpoint = torch.load(args.checkpoint_path)
+    model.load_state_dict(checkpoint["model_state"])
+    
+    # iterate through task list 
+    for task_name in task_list:
+        # get relevant test dataset and remap indices
+        test_dataset = get_dataset(dataset_name=args.dataset_name, 
+                                   split=task_name, 
+                                   subset_path=None, 
+                                   transform=preprocess)
+        if args.training_task == 'classification':
+            test_dataset.data['label'] = test_dataset.data['label'].map(value_to_index)
+            test_dataset.data.dropna(subset=['label'],inplace=True)
+            test_dataset.data=dataset.data.reset_index(drop=True)
+            test_dataset.labels=test_dataset.data['label']
+        print(f"testing on {task_name}")
+        metrics, logits_dict = train_engine.evaluate(test_dataset=test_dataset, task_name=task_name)
+
+        # save metrics
+        with open(args.outputs_path+f"{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_metrics.json", "w") as json_file:
+            metrics['subset_size']=len(train_dataset)
+            json.dump(metrics, json_file, indent=4)
+            torch.save({"logits": logits_dict['logits'], 
+                        "labels": logits_dict['labels'], 
+                        "preds": logits_dict['predictions'], 
+                        "mapping": value_to_index}, 
+                        f"{args.output_path}/{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_logits.pt")
 
 
-    # early stopping
-    patience = 3 
-    early_stopping_counter = 0
-
-    # setting variables
-    best_val_loss = float('inf')
-    best_epoch = None
-    best_model = None
-    num_epochs = args.num_epochs
-    current_epoch=0
-
-    while current_epoch < num_epochs:
-        current_epoch += 1
-        loss_train, oa_train = train(train_dataloader=train_dataloader,
-                                    model=model,
-                                    # processor=processor, 
-                                    optimizer=optimizer,
-                                    num_epochs=num_epochs,
-                                    device=device)
-        loss_val, oa_val = validate(val_dataloader=val_dataloader, 
-                                    model=model, 
-                                    device=device)
-        if loss_val < best_val_loss:
-            best_val_loss = loss_val
-            best_epoch = current_epoch
-            best_model = model
-            name = f'Best_Epoch_{current_epoch}_Loss_{round(loss_val, 2)}'
-            early_stopping_counter = 0  
-        else:
-            early_stopping_counter += 1  
-            if early_stopping_counter >= patience:
-                print("Early stopping: Validation loss hasn't decreased for {} epochs.".format(patience))
-                if best_val_loss < float('inf'):
-                    save_model(model=best_model, save_path=args.model_save_path, epoch=best_epoch)
-
-    if best_val_loss < float('inf'):
-        save_model(model=best_model, save_path=args.model_save_path, epoch=best_epoch)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

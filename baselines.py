@@ -18,7 +18,8 @@ BASELINES = {
     "match_label",
     "match_dist",
     "image_alignment",
-    "text_alignment"
+    "text_alignment",
+    "tsds"
 }
 
 def check_args(args):
@@ -176,7 +177,6 @@ if __name__ == "__main__":
     # )
 
     args = parser.parse_args()
-
     # all error checking happens here and apply_filter assumes correct input
     check_args(args)
     print(args.dataset_name)

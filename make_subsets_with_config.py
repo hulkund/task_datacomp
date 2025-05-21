@@ -4,7 +4,6 @@ import os
 import subprocess
 import shlex
 import yaml
-import pdb
 
 # full list
 # dataset_list = ['GeoDE', 'AutoArborist', 'iWildCam', 'SelfDrivingCar', 'FMoW'] #NEED CROPHARVEST & GALAXYZOO
@@ -12,12 +11,29 @@ import pdb
 # finetune_list = ["linear_probe", "full_finetune"]
 # lr_list = [0.01, 0.001, 0.0001]
 
-# tester list
-dataset_list = ['GeoDE'] #NEED CROPHARVEST & GALAXYZOO
-baselines_list = ["image_alignment"]
-# baselines_list = ["no_filter","clip_score", "random_filter", "image_based", "image_alignment","match_dist","match_label"]
-finetune_list = ["linear_probe","full_finetune"]
-lr_list = [0.01, 0.001, 0.0001]
+# tester list#NEED CROPHARVEST & GALAXYZOO
+# baselines_list = ["image_alignment","no_filter","image_based","random_filter"]
+# baselines_list = ["match_dist","match_label"]#,"match_dist","match_label"]
+
+# real
+# dataset_list = ['AutoArborist'] 
+# baselines_list = ["no_filter", "clip_score", "random_filter", "image_based", "image_alignment", "match_dist", "match_label"]
+# finetune_list = ["full_finetune"]
+# lr_list = [0.01,0.001]
+# batch_size_list = [32]
+
+dataset_list = ['iWildCam','AutoArborist','GeoDE'] 
+baselines_list = ["tsds","no_filter"]
+finetune_list = ["full_finetune_resnet50","full_finetune_vit"]
+lr_list = [0.01,0.001]
+batch_size_list = [32]
+
+# tester
+# dataset_list = ['iWildCam'] 
+# baselines_list = ["no_filter"]
+# finetune_list = ["full_finetune"]
+# lr_list = [0.1]
+# batch_size_list = [32]
 
 # Open the YAML baselines configuration file
 with open('configs/baselines.yaml', 'r') as file:
@@ -33,38 +49,55 @@ for dataset in dataset_list:
             if finetune_type=="linear_probe": lr_list = [0]
             else: lr_list = lr_list
             for lr in lr_list:
-                fraction_list = baselines_config[baseline]["fraction_list"]
-                if baselines_config[baseline]["task"] == "tasks": task_list = datasets_config[dataset]["task_list"]
-                else: task_list = ["all"]
-                embedding_path = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
-                centroids_path = f"all_datasets/{dataset}/centroids/train_centroids.pt"
-                for fraction in fraction_list:
-                    for task in task_list:
-                        if task == "all" : val_embedding_path=""
-                        else: val_embedding_path=f"all_datasets/{dataset}/embeddings/val{task[4]}_embeddings.npy"
-                        save_folder = f"experiments/{dataset}/{baseline}_{fraction}/"
-                        save_path= save_folder+f"{task}_subset.npy"
-                        if not os.path.exists(save_path):
-                            print(save_path)
-                            if baseline in ["match_label", "match_dist"]:
-                                task_num=task[4]
-                                subprocess.call(shlex.split('sbatch run_csv_baseline.sh "%s" "%s" "%s" %s "%s"'%(baseline, 
-                                                                                                                  dataset, 
-                                                                                                                  task_num, 
-                                                                                                                  fraction, 
-                                                                                                                  save_path)))
-
-                            else:
-                                subprocess.call(shlex.split('sbatch run_baseline.sh "%s" "%s" "%s" %s "%s" "%s"'%(baseline, 
-                                                                                                                  embedding_path, 
-                                                                                                                  save_path, 
-                                                                                                                  fraction, 
-                                                                                                                  val_embedding_path, 
-                                                                                                                  centroids_path)))
-                        if not os.path.exists(save_folder+f"{task}_{finetune_type}_lr={lr}_metrics.json"):
-                            subprocess.call(shlex.split('sbatch baselines/run_new_train.sh "%s" "%s" "%s" "%s" %s %s'%(dataset, 
-                                                                                                                       save_path, 
-                                                                                                                       save_folder,
-                                                                                                                       'configs/datasets.yaml',
-                                                                                                                       lr,
-                                                                                                                       finetune_type)))
+                for batch_size in batch_size_list:
+                    fraction_list = baselines_config[baseline]["fraction_list"]
+                    if baselines_config[baseline]["task"] == "tasks": task_list = datasets_config[dataset]["task_list"]
+                    else: task_list = ["all"]
+                    embedding_path = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
+                    centroids_path = f"all_datasets/{dataset}/centroids/train_centroids.pt"
+                    for fraction in fraction_list:
+                        for task in task_list:
+                            if task == "all" : val_embedding_path=""
+                            else: val_embedding_path=f"all_datasets/{dataset}/embeddings/val{task[4]}_embeddings.npy"
+                            save_folder = f"experiments/{dataset}/{baseline}_{fraction}/"
+                            save_path= save_folder+f"{task}_subset.npy"
+                            checkpoint_path = save_folder+f"{task}_finetune={finetune_type}_lr={lr}_batchsize={batch_size}"
+                            training_task = datasets_config[dataset]["training_task"]
+                            if not os.path.exists(save_path):
+                                print(save_path)
+                                if baseline in ["match_label", "match_dist"]:
+                                    task_num=task[4]
+                                    subprocess.call(shlex.split('sbatch run_csv_baseline.sh "%s" "%s" "%s" %s "%s"'%(baseline, 
+                                                                                                                      dataset, 
+                                                                                                                      task_num, 
+                                                                                                                      fraction, 
+                                                                                                                      save_path)))
+    
+                                else:
+                                    subprocess.call(shlex.split('sbatch run_baseline.sh "%s" "%s" "%s" %s "%s" "%s"'%(baseline, 
+                                                                                                                      embedding_path, 
+                                                                                                                      save_path, 
+                                                                                                                      fraction, 
+                                                                                                                      val_embedding_path, 
+                                                                                                                      centroids_path)))
+                            if not os.path.exists(save_folder+f"{task}_{finetune_type}_lr={lr}_metrics.json"):
+                                if dataset=="SelfDrivingCar":
+                                    subprocess.call(shlex.split('sbatch baselines/run_new_train_car.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s'%(dataset, 
+                                                                                                                               save_path, 
+                                                                                                                               save_folder,
+                                                                                                                        'configs/datasets.yaml',
+                                                                                                                               lr,
+                                                                                                                               finetune_type,
+                                                                                                                               batch_size,
+                                                                                                                               checkpoint_path,
+                                                                                                                                training_task)))
+                                else:
+                                    subprocess.call(shlex.split('sbatch baselines/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s'%(dataset, 
+                                                                                                                               save_path, 
+                                                                                                                               save_folder,
+                                                                                                                        'configs/datasets.yaml',
+                                                                                                                               lr,
+                                                                                                                               finetune_type,
+                                                                                                                               batch_size,
+                                                                                                                               checkpoint_path,
+                                                                                                                               training_task)))

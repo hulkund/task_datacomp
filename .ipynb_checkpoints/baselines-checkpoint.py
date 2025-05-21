@@ -5,15 +5,21 @@ from pathlib import Path
 import torch
 
 from baselines.apply_filter_ours import apply_filter
+from baselines.basic_csv_baselines import apply_csv_filter
 
 BASELINES = {
     "no_filter",
     "basic_filter",
     "text_based",
     "image_based",
-    "image_based_intersect_clip_score",
+    "image_clip",
     "clip_score",
-    "random_filter"
+    "random_filter",
+    "match_label",
+    "match_dist",
+    "image_alignment",
+    "text_alignment",
+    "tsds"
 }
 
 def check_args(args):
@@ -66,9 +72,21 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--dataset_name",
+        type=str,
+        required=False,
+    )
+
+    parser.add_argument(
+        "--task_name",
+        type=int,
+        required=False,
+    )
+
+    parser.add_argument(
         "--embedding_path",
         type=str,
-        required=True,
+        required=False,
         help="directory (local or cloud) containing parquet, npz metadata",
     )
 
@@ -159,9 +177,10 @@ if __name__ == "__main__":
     # )
 
     args = parser.parse_args()
-
     # all error checking happens here and apply_filter assumes correct input
     check_args(args)
-
+    print(args.dataset_name)
+    if args.name == "match_label" or args.name == "match_dist":
+        apply_csv_filter(args)
     # route the args to the correct baseline
-    apply_filter(args)
+    else: apply_filter(args)

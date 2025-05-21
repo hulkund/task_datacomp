@@ -16,6 +16,7 @@ import fsspec
 import numpy as np
 import pandas as pd
 import torch
+import os
 from tqdm import tqdm
 
 # from baselines.apply_filter import caption_filter
@@ -68,42 +69,6 @@ def train_kmeans(
     centroids = faiss.vector_float_to_array(cluster.centroids)
 
     return centroids.reshape(num_clusters, d)
-
-
-# def load_embedding_helper(
-#     fs_root: str,
-#     key: str = "image_embedding",
-#     caption_filtering: bool = False,
-#     sample_ratio: float = -1.0,
-# ) -> np.ndarray:
-#     """worker function to load embeddings
-
-#     Args:
-#         fs_root (Tuple[Any, str]): (filesystem, path_root)
-#         key (str, optional): key to load from npz. Defaults to "l14_img".
-#         caption_filtering (bool, optional): whether to enable caption filter. Defaults to False.
-#         sample_ratio (float, optional): ratio of samples to use. Defaults to -1.0.
-#     """
-
-#     # fs, path_root = fs_root
-#     embed = np.load(f"{fs_root}",allow_pickle=True)#[0][key]
-#     embed = np.vstack([e[key] for e in embed])
-#     print(embed.shape)
-#     if caption_filtering:
-#         lang_detect_model = fasttext.load_model(
-#             download("fasttext", "~/.cache/fasttext")
-#         )
-#         df = pd.read_parquet(
-#             f"{path_root}.parquet", columns=["uid", "text"], filesystem=fs
-#         )
-#         mask = caption_filter(df, lang_detect_model)
-#         embed = embed[mask]
-#     if sample_ratio > 0:
-#         n = len(embed)
-#         idx = np.random.choice(range(n), size=int(n * sample_ratio))
-#         embed = embed[idx]
-#     return embed
-
 
 def load_embedding(
     path: str,
@@ -220,5 +185,8 @@ if __name__ == "__main__":
         centroids = train_kmeans(
             embeddings, num_clusters, num_gpus=num_gpus, seed=args.seed
         )
-        save_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{args.dataset_name}/centroids/"+"{}_centroids.pt".format(split)
+        save_folder = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{args.dataset_name}/centroids/"
+        if not os.path.exists(save_folder):
+            os.makedirs(save_folder) 
+        save_path = save_folder + "{}_centroids.pt".format(split)
         torch.save(centroids, save_path, pickle_protocol=4)
