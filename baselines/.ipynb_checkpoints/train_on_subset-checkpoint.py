@@ -104,8 +104,16 @@ def main():
                           subset_path=args.subset_path, 
                           transform=preprocess)
     if args.training_task == 'classification':
-        unique_values = dataset.labels.unique()  # Get unique values
+        # removing single value labels
+        label_counts = dataset.data['label'].value_counts()
+        single_instance_labels = label_counts[label_counts == 1].index
+        dataset.data = dataset.data[~dataset.data['label'].isin(single_instance_labels)]
+        dataset.data = dataset.data.reset_index(drop=True)
+        dataset.labels = dataset.data['label']
+        # getting new mapping
+        unique_values = dataset.labels.unique()  # get unique values
         value_to_index = {value: idx for idx, value in enumerate(unique_values)}
+        print(args.dataset_name, dataset.data.columns)
         dataset.data['label'] = dataset.data['label'].map(value_to_index)
         dataset.data.dropna(subset=['label'],inplace=True)
         dataset.data = dataset.data.reset_index()
@@ -164,7 +172,7 @@ def main():
                         "labels": logits_dict['labels'], 
                         "preds": logits_dict['predictions'], 
                         "mapping": value_to_index}, 
-                        f"{args.output_path}/{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_logits.pt")
+                        f"{args.outputs_path}/{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_logits.pt")
 
 
 if __name__ == "__main__":

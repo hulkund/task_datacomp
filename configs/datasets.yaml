@@ -29,8 +29,23 @@ AutoArborist:
         val3: 'valSurrey.csv'
         val4: 'valWashingtonDc.csv'
 iWildCam:
-    csv_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/'
+    csv_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/new_splits/'
     img_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/iwildcam_v2.0/train/'
+    task_list: ["test1", "test2", "test3", "test4"]
+    training_task: "classification"
+    FILEPATHS: 
+        test1: 'test1_id.csv'
+        test2: 'test1_ood.csv'
+        test3: 'test3_id.csv'
+        test4: 'test3_ood.csv'
+        train: 'train.csv'
+        val1: 'val1_id.csv'
+        val2: 'val1_ood.csv'
+        val3: 'val3_id.csv'
+        val4: 'val3_ood.csv'
+iWildCamCropped:
+    csv_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/new_splits/'
+    img_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/iwildcam_v2.0/crops/'
     task_list: ["test1", "test2", "test3", "test4"]
     training_task: "classification"
     FILEPATHS: 
@@ -47,6 +62,7 @@ SelfDrivingCar:
     csv_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/SelfDrivingCar/splits/'
     img_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/SelfDrivingCar/images/'
     task_list: ["test1", "test2", "test3", "test4"]
+    training_task: 'regression'
     FILEPATHS: 
         test1: 'test0.csv'
         test2: 'test1.csv'

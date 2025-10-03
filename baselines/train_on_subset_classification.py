@@ -73,39 +73,126 @@ def evaluate_classification(
         predictions = model.predict(test_features)
         metrics = get_metrics(predictions=predictions, ground_truth=test_labels)
     else:
-        test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, num_workers=1, shuffle=False)
+        test_dataloader = DataLoader(dataset=test_dataset, batch_size=128, num_workers=8, shuffle=False, pin_memory=True)
         metrics = evaluate_full_finetune(model, test_dataloader)
     return metrics
 
-def evaluate_full_finetune(model, test_dataloader):
-    device="cuda"
-    model.eval()
+# def evaluate_full_finetune(model, test_dataloader):
+#     device="cuda"
+#     model.eval()
+#     model.to(device)
+#     correct = 0
+#     total = 0
+#     predicted_all = []
+#     labels_all = []
+#     logits_all = []
+#     print(device)
+#     print(len(test_dataloader))
+#     with torch.no_grad():
+#         for i, data in enumerate(tqdm(test_dataloader,0)):
+#             images,_, labels,_ = data
+#             images, labels = images.to(device), labels.to(device)
+#             outputs = model(images)
+#             _, predicted = torch.max(outputs.data, 1)
+#             total += labels.size(0)
+#             correct += (predicted == labels).sum().item()
+#             logits_all.append(outputs.cpu())
+#             predicted_all.append(predicted.cpu())
+#             labels_all.append(labels.cpu())
+#     # Convert to a tensor
+#     logits_tensor = torch.cat(logits_all, dim=0)
+#     labels_tensor = torch.cat(labels_all, dim=0)
+#     pred_tensor = torch.cat(predicted_all, dim=0)
+#     # Save logits and labels for analysis
+#     logits_dict = {"logits": logits_tensor, "labels": labels_tensor, "predictions": pred_tensor}
+#     metrics = get_metrics(predictions=predicted_all, ground_truth=labels_all)
+#     metrics['accuracy']=correct / total
+#     return metrics, logits_dict
+import time
+import subprocess
+
+def print_gpu_utilization():
+    try:
+        # Query GPU memory and utilization
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used", "--format=csv,noheader,nounits"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        util, mem = result.stdout.strip().split(", ")
+        print(f"🔹 GPU Utilization: {util}% | Memory Used: {mem} MB")
+    except Exception as e:
+        print(f"(GPU utilization check failed: {e})")
+
+
+def evaluate_full_finetune(model, test_dataloader, log_gpu_every=10):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
+    model.eval()
+
     correct = 0
     total = 0
+
+    logits_all = []
     predicted_all = []
     labels_all = []
-    logits_all = []
+
+    batch_times = []
+    data_times = []
+
+    start_total = time.time()
+    end_data = time.time()
+
     with torch.no_grad():
-        for data in test_dataloader:
-            images,_, labels,_ = data
-            images, labels = images.to(device), labels.to(device)
+        for i, (images, _, labels, _) in enumerate(tqdm(test_dataloader, desc="Evaluating")):
+            # Measure data loading time
+            data_time = time.time() - end_data
+            data_times.append(data_time)
+
+            # Move to device
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+
+            start_batch = time.time()
+
+            # Forward pass
             outputs = model(images)
-            _, predicted = torch.max(outputs.data, 1)
+            _, predicted = torch.max(outputs, 1)
+
+            # Accuracy
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            logits_all.extend(outputs.cpu())
-            predicted_all.extend(predicted.cpu())
-            labels_all.extend(labels.cpu())
-    # Convert to a tensor
+
+            # Store tensors (append, not extend)
+            logits_all.append(outputs.cpu())
+            predicted_all.append(predicted.cpu())
+            labels_all.append(labels.cpu())
+
+            batch_time = time.time() - start_batch
+            batch_times.append(batch_time)
+
+            # # Periodically log GPU stats
+            # if device == "cuda" and (i % log_gpu_every == 0):
+            #     print_gpu_utilization()
+
+            # Mark end of this iteration’s data loading for next iteration
+            end_data = time.time()
+
+    # Concatenate tensors in one go
     logits_tensor = torch.cat(logits_all, dim=0)
-    labels_tensor = torch.stack(labels_all, dim=0)
-    pred_tensor = torch.stack(predicted_all, dim=0)
-    # Save logits and labels for analysis
-    logits_dict = {"logits": logits_tensor, "labels": labels_tensor, "predictions": pred_tensor}
-    metrics = get_metrics(predictions=predicted_all, ground_truth=labels_all)
-    metrics['accuracy']=correct / total
-    return metrics, logits_dict
+    labels_tensor = torch.cat(labels_all, dim=0)
+    pred_tensor = torch.cat(predicted_all, dim=0)
+
+    # Metrics
+    metrics = get_metrics(predictions=pred_tensor, ground_truth=labels_tensor)
+    metrics['accuracy'] = correct / total
+
+    total_time = time.time() - start_total
+
+    print(f"\n✅ Evaluation complete in {total_time:.2f} seconds")
+    print(f"   Avg batch time: {sum(batch_times)/len(batch_times):.4f} s")
+    print(f"   Avg data load time: {sum(data_times)/len(data_times):.4f} s")
+
+    return metrics, {"logits": logits_tensor, "labels": labels_tensor, "predictions": pred_tensor}
 
 def train_full_finetune(model, 
                         train_dataloader, 

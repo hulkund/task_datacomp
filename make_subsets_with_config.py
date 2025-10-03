@@ -22,18 +22,11 @@ import yaml
 # lr_list = [0.01,0.001]
 # batch_size_list = [32]
 
-dataset_list = ['iWildCam','AutoArborist','GeoDE'] 
-baselines_list = ["tsds","no_filter"]
-finetune_list = ["full_finetune_resnet50","full_finetune_vit"]
-lr_list = [0.01,0.001]
-batch_size_list = [32]
-
-# tester
-# dataset_list = ['iWildCam'] 
-# baselines_list = ["no_filter"]
-# finetune_list = ["full_finetune"]
-# lr_list = [0.1]
-# batch_size_list = [32]
+dataset_list = ['SelfDrivingCar'] 
+baselines_list = ["no_filter", "clip_score", "random_filter", "image_based", "image_alignment"]
+finetune_list = ["full_finetune_resnet50"]
+lr_list = [0.001,0.0001]
+batch_size_list = [128]
 
 # Open the YAML baselines configuration file
 with open('configs/baselines.yaml', 'r') as file:
@@ -59,7 +52,7 @@ for dataset in dataset_list:
                         for task in task_list:
                             if task == "all" : val_embedding_path=""
                             else: val_embedding_path=f"all_datasets/{dataset}/embeddings/val{task[4]}_embeddings.npy"
-                            save_folder = f"experiments/{dataset}/{baseline}_{fraction}/"
+                            save_folder = f"experiments_again/{dataset}/{baseline}_{fraction}/"
                             save_path= save_folder+f"{task}_subset.npy"
                             checkpoint_path = save_folder+f"{task}_finetune={finetune_type}_lr={lr}_batchsize={batch_size}"
                             training_task = datasets_config[dataset]["training_task"]
@@ -75,24 +68,14 @@ for dataset in dataset_list:
     
                                 else:
                                     subprocess.call(shlex.split('sbatch run_baseline.sh "%s" "%s" "%s" %s "%s" "%s"'%(baseline, 
-                                                                                                                      embedding_path, 
+                                                                                                                       embedding_path, 
                                                                                                                       save_path, 
                                                                                                                       fraction, 
                                                                                                                       val_embedding_path, 
                                                                                                                       centroids_path)))
                             if not os.path.exists(save_folder+f"{task}_{finetune_type}_lr={lr}_metrics.json"):
-                                if dataset=="SelfDrivingCar":
-                                    subprocess.call(shlex.split('sbatch baselines/run_new_train_car.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s'%(dataset, 
-                                                                                                                               save_path, 
-                                                                                                                               save_folder,
-                                                                                                                        'configs/datasets.yaml',
-                                                                                                                               lr,
-                                                                                                                               finetune_type,
-                                                                                                                               batch_size,
-                                                                                                                               checkpoint_path,
-                                                                                                                                training_task)))
-                                else:
-                                    subprocess.call(shlex.split('sbatch baselines/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s'%(dataset, 
+                                print(f"calling running new training job with the following args {dataset}, {training_task}")
+                                subprocess.call(shlex.split('sbatch baselines/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s'%(dataset, 
                                                                                                                                save_path, 
                                                                                                                                save_folder,
                                                                                                                         'configs/datasets.yaml',

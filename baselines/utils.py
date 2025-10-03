@@ -8,6 +8,7 @@ sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
 from all_datasets.FMoW_dataset import FMoWDataset
 from all_datasets.COOS_dataset import COOSDataset
 from all_datasets.iWildCam_dataset import iWildCamDataset
+from all_datasets.iWildCamCropped_dataset import iWildCamCroppedDataset
 from all_datasets.CivilComments_dataset import CivilCommentsDataset
 from all_datasets.GeoDE_dataset import GeoDEDataset
 from all_datasets.AutoArborist_dataset import AutoArboristDataset
@@ -37,6 +38,7 @@ def get_train_val_dl(dataset, batch_size, training_task):
     if training_task == "classification" :
         # Convert labels to a tensor (assuming dataset.labels is a pandas Series)
         all_labels = torch.tensor(dataset.labels.to_numpy())  
+        print(len(all_labels), len(dataset))
         # Generate stratified train/val split indices
         train_indices, val_indices = train_test_split(
             range(len(dataset)), 
@@ -60,8 +62,8 @@ def get_train_val_dl(dataset, batch_size, training_task):
     val_dataset = Subset(dataset, val_indices)
     # Extract labels based on new indices
     # Create DataLoaders
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=1, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, num_workers=1, shuffle=False)  # No need to shuffle validation
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=8, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, num_workers=8, shuffle=False)  # No need to shuffle validation
     return train_dataset, val_dataset, train_dataloader, val_dataloader, num_classes
 
     
@@ -89,6 +91,8 @@ def get_dataset(dataset_name,split,subset_path=None,transform=None):
         dataset = FMoWDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "iWildCam":
         dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform)
+    elif dataset_name == "iWildCamCropped":
+        dataset = iWildCamCroppedDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "GeoDE":
         dataset = GeoDEDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "AutoArborist":
@@ -110,14 +114,16 @@ def get_dataset_config(dataset_name):
 
 def get_metrics(predictions, ground_truth):
     acc = accuracy_score(ground_truth, predictions)
-    precision = precision_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
-    recall = recall_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
+    # precision = precision_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
+    # recall = recall_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
     conf_mat = confusion_matrix(ground_truth, predictions,labels=np.unique(ground_truth))
     try:
         avg_acc = np.mean(conf_mat.diagonal()/conf_mat.sum(axis=1))
     except:
         return 0
-    metrics = {"acc":acc, "precision": precision, "recall":recall}
+    metrics = {"acc":acc}#, 
+               # # "precision": precision, 
+               # "recall":recall}
     return metrics
 
 class FaissIndexIVFFlat:

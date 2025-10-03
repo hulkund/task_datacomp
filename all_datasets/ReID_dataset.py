@@ -11,7 +11,7 @@ import pandas as pd
 from torchvision import transforms 
 import json
 import re
-from task_dataset import TaskDataset
+from all_datasets.task_dataset import TaskDataset
 
 
 class ReIDDataset(TaskDataset):

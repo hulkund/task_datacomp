@@ -37,6 +37,7 @@ def get_train_val_dl(dataset, batch_size, training_task):
     if training_task == "classification" :
         # Convert labels to a tensor (assuming dataset.labels is a pandas Series)
         all_labels = torch.tensor(dataset.labels.to_numpy())  
+        print(len(all_labels), len(dataset))
         # Generate stratified train/val split indices
         train_indices, val_indices = train_test_split(
             range(len(dataset)), 
@@ -103,16 +104,23 @@ def get_dataset(dataset_name,split,subset_path=None,transform=None):
         dataset = ReIDDataset(split=split, subset_path=subset_path, transform=transform)
     return dataset
 
+def get_dataset_config(dataset_name):
+    with open('../configs/datasets.yaml', 'r') as file:
+        data = yaml.safe_load(file)
+    return data
+
 def get_metrics(predictions, ground_truth):
     acc = accuracy_score(ground_truth, predictions)
-    precision = precision_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
-    recall = recall_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
+    # precision = precision_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
+    # recall = recall_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
     conf_mat = confusion_matrix(ground_truth, predictions,labels=np.unique(ground_truth))
     try:
         avg_acc = np.mean(conf_mat.diagonal()/conf_mat.sum(axis=1))
     except:
         return 0
-    metrics = {"acc":acc, "precision": precision, "recall":recall}
+    metrics = {"acc":acc}#, 
+               # # "precision": precision, 
+               # "recall":recall}
     return metrics
 
 class FaissIndexIVFFlat:

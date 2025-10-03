@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 import pandas as pd
 from torchvision import transforms 
-from task_dataset import TaskDataset
+from all_datasets.task_dataset import TaskDataset
 
 class GeoDEDataset(TaskDataset):
     def __init__(self, split, subset_path=None, transform=None):
@@ -19,6 +19,7 @@ class GeoDEDataset(TaskDataset):
         else: self.transform=transform
         self.num_classes=len(np.unique(self.data['label']))
         self.labels=self.data['label']
+        self.targets = torch.tensor(self.data['label'].astype(int).to_numpy(), dtype=torch.long)
         self.category_name=self.data['object']
         self.mapping=dict(zip(self.labels, self.category_name))
         self.img_path_col='file_path'

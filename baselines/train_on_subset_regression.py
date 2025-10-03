@@ -15,6 +15,8 @@ from model_backbone import get_lora_model, get_model_processor, get_features
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+from torch.utils.data import DataLoader, random_split, Subset
+
 
 # Load the model
 device = "cuda" if torch.cuda.is_available() else "cpu"

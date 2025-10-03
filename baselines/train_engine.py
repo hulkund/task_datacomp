@@ -11,7 +11,6 @@ class TrainEngine():
     def __init__(self, training_task, **kwargs):
         self.training_task = training_task
         self.kwargs = kwargs
-        print(self.kwargs)
         
     def train(self):
         task_map = {
@@ -21,7 +20,7 @@ class TrainEngine():
             'reid': train_reid
         }
         if self.training_task in task_map:
-            print(f"Training {self.training_task} with arguments: {self.kwargs}")
+            # print(f"Training {self.training_task} with arguments: {self.kwargs}")
             try:
                 return task_map[self.training_task](**self.kwargs)
             except TypeError as e:

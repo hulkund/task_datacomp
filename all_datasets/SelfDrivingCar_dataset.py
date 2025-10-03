@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 import pandas as pd
 import yaml
-from task_dataset import TaskDataset
+from all_datasets.task_dataset import TaskDataset
 
 
 class NormalizeTo01(object):

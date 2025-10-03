@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 import pandas as pd
 from torchvision import transforms 
-from task_dataset import TaskDataset
+from all_datasets.task_dataset import TaskDataset
 
 class FishDetectionDataset(TaskDataset):
     def __init__(self, split, subset_path=None, transform=None):

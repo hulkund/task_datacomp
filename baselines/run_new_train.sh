@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH -c 8
 #SBATCH --mem=50G
-#SBATCH --time=12:00:00
+#SBATCH --time=23:00:00
 
 source /data/vision/beery/scratch/neha/.bashrc
 conda activate datacomp
@@ -27,7 +27,7 @@ TRAINING_TASK="$9"
 echo "Running with: Dataset=$DATASET_NAME | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK"
 
 # Run the training script
-python baselines/train_engine.py \
+python baselines/train_on_subset.py \
     --dataset_name "$DATASET_NAME" \
     --subset_path "$SUBSET_PATH" \
     --outputs_path "$OUTPUTS_PATH" \

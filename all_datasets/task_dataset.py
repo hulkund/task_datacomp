@@ -8,6 +8,10 @@ import numpy as np
 import yaml
 from PIL import Image
 import pandas as pd
+import sys
+sys.path.append("../")
+sys.path.append("/data/vision/beery/scratch/neha/task-datacomp/")
+
 
 
 with open('configs/datasets.yaml', 'r') as file:
@@ -16,6 +20,7 @@ with open('configs/datasets.yaml', 'r') as file:
 class TaskDataset(Dataset):
     def __init__(self, dataset_name, split, subset_path):
         self.csv_path = data[dataset_name]['csv_root_path']+data[dataset_name]['FILEPATHS'][split]
+        print(self.csv_path)
         self.img_root_path = data[dataset_name]['img_root_path']
         self.data = pd.read_csv(self.csv_path)
         if subset_path:
@@ -25,7 +30,7 @@ class TaskDataset(Dataset):
         self.uids=self.data['uid']
         
     def __len__(self):
-        return self.total_samples
+        return len(self.data)
     
     def __getitem__(self, idx):
         raise NotImplementedError

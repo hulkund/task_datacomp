@@ -101,7 +101,7 @@ parser.add_argument(
     "--dataset_name",
     type=str,
     required=True,
-    choices=["FMoW","COOS","iWildCam","GeoDE", "AutoArborist", "SelfDrivingCar"],
+    choices=["FMoW","COOS","iWildCam","GeoDE", "AutoArborist", "SelfDrivingCar", "iWildCamCropped", "CropHarvest", "FishDetection", "ReID"],
     default="COOS",
     help="Dataset name",
 )

@@ -90,7 +90,14 @@ def main():
         required=True,
         choices=["classification","regression","detection","reid"]
     )
-    
+    parser.add_argument(
+        "--only_evaluate",
+        action="store_true",
+        help="whether to only evaluate the model",
+        required=False,
+        default=False
+    )
+
     args = parser.parse_args()
     model, preprocess = get_model_processor(args.finetune_type)
 
@@ -104,8 +111,16 @@ def main():
                           subset_path=args.subset_path, 
                           transform=preprocess)
     if args.training_task == 'classification':
-        unique_values = dataset.labels.unique()  # Get unique values
+        # removing single value labels
+        label_counts = dataset.data['label'].value_counts()
+        single_instance_labels = label_counts[label_counts == 1].index
+        dataset.data = dataset.data[~dataset.data['label'].isin(single_instance_labels)]
+        dataset.data = dataset.data.reset_index(drop=True)
+        dataset.labels = dataset.data['label']
+        # getting new mapping
+        unique_values = dataset.labels.unique()  # get unique values
         value_to_index = {value: idx for idx, value in enumerate(unique_values)}
+        print(args.dataset_name, dataset.data.columns)
         dataset.data['label'] = dataset.data['label'].map(value_to_index)
         dataset.data.dropna(subset=['label'],inplace=True)
         dataset.data = dataset.data.reset_index()
@@ -120,7 +135,7 @@ def main():
         task_name = subset_filename.split('_')[0]
         task_list = [task_name]
 
-    # training  
+    # training 
     train_engine = TrainEngine(training_task=args.training_task,
                               train_dl=train_dataloader, 
                               val_dl=val_dataloader,
@@ -134,13 +149,16 @@ def main():
                               subset_path=args.subset_path,
                               num_classes=num_classes,
                               checkpoint_path=args.checkpoint_path)
-    
-    model = train_engine.train()
+    if not args.only_evaluate:
+        model = train_engine.train()
 
     # load the best checkpoint for model
     checkpoint = torch.load(args.checkpoint_path)
+    # temp fix, needs to be fixed in the future
+    if args.only_evaluate and args.training_task == "classification":
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
     model.load_state_dict(checkpoint["model_state"])
-    
+
     # iterate through task list 
     for task_name in task_list:
         # get relevant test dataset and remap indices
@@ -151,9 +169,9 @@ def main():
         if args.training_task == 'classification':
             test_dataset.data['label'] = test_dataset.data['label'].map(value_to_index)
             test_dataset.data.dropna(subset=['label'],inplace=True)
-            test_dataset.data=dataset.data.reset_index(drop=True)
+            test_dataset.data=test_dataset.data.reset_index(drop=True)
             test_dataset.labels=test_dataset.data['label']
-        print(f"testing on {task_name}")
+        print(f"testing on {task_name}", len(test_dataset))
         metrics, logits_dict = train_engine.evaluate(test_dataset=test_dataset, task_name=task_name)
 
         # save metrics
@@ -164,7 +182,7 @@ def main():
                         "labels": logits_dict['labels'], 
                         "preds": logits_dict['predictions'], 
                         "mapping": value_to_index}, 
-                        f"{args.output_path}/{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_logits.pt")
+                        f"{args.outputs_path}/{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_logits.pt")
 
 
 if __name__ == "__main__":

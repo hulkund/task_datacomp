@@ -8,7 +8,7 @@ import io
 import numpy as np
 from PIL import Image
 import pandas as pd
-from task_dataset import TaskDataset
+from all_datasets.task_dataset import TaskDataset
 
 class NormalizeTo01(object):
     def __call__(self, image):
@@ -29,9 +29,6 @@ class AutoArboristDataset(TaskDataset):
         self.labels=self.data['label']
         self.category_name=self.data['genus']
         self.mapping=dict(zip(self.labels, self.category_name))
-
-    def __len__(self):
-        return self.total_samples
     
     def __getitem__(self, idx):
         img_path = self.img_root_path+self.data.iloc[idx]['street_level']

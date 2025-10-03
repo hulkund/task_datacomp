@@ -206,6 +206,17 @@ def load_uids_with_text_alignment(
     uids=np.array([uid for uid in pool_embed[pool_embed[key_similarity] >= threshold]["uid"]])
     return uids
 
+# def load_uids_with_cluster_ot_filter(
+#     pool_embedding_path: str,
+#     val_embedding_path: str,
+#     fraction: float,
+# ) -> np.ndarray:
+#     key = "image_embedding"
+#     pool_embed = load_embedding(pool_embedding_path, [key, "uid"])
+#     val_embed = load_embedding(val_embedding_path, [key, "uid"])
+
+    
+
 
 def load_embedding(embedding_path:str, columns):
     embed = np.load(f"{embedding_path}",allow_pickle=True)
@@ -423,6 +434,7 @@ def load_uids_with_tsds(
     uid_array = candidate_df["uid"].to_numpy()
     selected_uids = np.array([uid_array[i] for i in sample_indices])
     return selected_uids
+
     
     
 def apply_filter(args: Any) -> None:
@@ -443,11 +455,11 @@ def apply_filter(args: Any) -> None:
         uids = load_uids(
             args.embedding_path
         )
-    elif args.name == "basic_filter":
-        uids = load_uids_with_basic_filter(
-            args.embedding_path,
-            args.num_workers,
-        )
+    # elif args.name == "basic_filter":
+    #     uids = load_uids_with_basic_filter(
+    #         args.embedding_path,
+    #         args.num_workers,
+    #     )
     elif args.name == "random_filter":
         uids = load_uids_with_random_filter(
             embedding_path=args.embedding_path,
