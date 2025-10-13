@@ -65,10 +65,20 @@ class GradMatch(EarlyTrain):
                 else:
                     A_i = torch.cat((A_i, A[:, index].view(1, -1)), dim=0)
                     temp = torch.matmul(A_i, torch.transpose(A_i, 0, 1)) + lam * torch.eye(A_i.shape[0], device="cuda")
-                    x_i, _ = torch.lstsq(torch.matmul(A_i, b).view(-1, 1), temp)
+                    # x_i, _ = torch.lstsq(torch.matmul(A_i, b).view(-1, 1), temp)
+                    x_i = torch.linalg.lstsq(temp, torch.matmul(A_i, b).view(-1, 1)).solution
                 resid = b - torch.matmul(torch.transpose(A_i, 0, 1), x_i).view(-1)
             if budget > 1:
-                x_i = nnls(temp.cpu().numpy(), torch.matmul(A_i, b).view(-1).cpu().numpy())[0]
+                # x_i = nnls(temp.cpu().numpy(), torch.matmul(A_i, b).view(-1).cpu().numpy())[0]
+                                # Sanitize arrays before SciPy call
+                A_np = temp.cpu().numpy()
+                b_np = torch.matmul(A_i, b).view(-1).cpu().numpy()
+
+                # Replace NaNs/Infs with finite numbers
+                A_np = np.nan_to_num(A_np, nan=0.0, posinf=1e6, neginf=-1e6)
+                b_np = np.nan_to_num(b_np, nan=0.0, posinf=1e6, neginf=-1e6)
+
+                x_i = nnls(A_np, b_np)[0]
                 x[indices] = x_i
             elif budget == 1:
                 x[indices[0]] = 1.
@@ -139,7 +149,9 @@ class GradMatch(EarlyTrain):
         gradients = torch.zeros([sample_num, self.args.num_classes * (self.embedding_dim + 1)],
                                 requires_grad=False, device=self.args.device)
 
-        for i, (input, targets) in enumerate(batch_loader):
+        for i, (image, text, label, uid) in enumerate(batch_loader):
+            input = image
+            targets = label.long()
             self.model_optimizer.zero_grad()
             outputs = self.model(input.to(self.args.device)).requires_grad_(True)
             loss = self.criterion(outputs, targets.to(self.args.device)).sum()

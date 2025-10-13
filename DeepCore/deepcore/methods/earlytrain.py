@@ -74,7 +74,9 @@ class EarlyTrain(CoresetMethod):
                                                    else self.dst_train, shuffle=False, batch_sampler=batch_sampler,
                                                    num_workers=self.args.workers, pin_memory=True)
 
-        for i, (inputs, targets) in enumerate(train_loader):
+        for i, (image, text, label, uid) in enumerate(train_loader):
+            inputs = image
+            targets = label.long()
             inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
 
             # Forward propagation, compute loss, get predictions
@@ -161,7 +163,9 @@ class EarlyTrain(CoresetMethod):
 
         print('\n=> Testing Epoch #%d' % epoch)
 
-        for batch_idx, (input, target) in enumerate(test_loader):
+        for batch_idx, (image, text, label, uid) in enumerate(test_loader):
+            input = image
+            target = label.long()
             output = self.model(input.to(self.args.device))
             loss = self.criterion(output, target.to(self.args.device)).sum()
 

@@ -1,7 +1,7 @@
 import torch
 from DeepCore.deepcore.methods.gradmatch import GradMatch
 import sys
-sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
+sys.path.append('/data/vision/beery/scratch/evelyn/task-datacomp/')
 from baselines.utils import get_dataset
 from baselines.model_backbone import get_model_processor
 import argparse
@@ -57,10 +57,10 @@ def run_gradmatch_filter(train_split='train',
 
 # model = get_model_processor("full_finetune_resnet50")
 args_dict = {'print_freq': 10, 
-             'num_classes': 182, 
+             'num_classes': 149, 
              'device': 'cuda', 
              'selection_batch': 256, 
-             'workers': 4, 
+             'workers': 10, 
              'channel':3, 
              'im_size':[224,224],
              'model':'ResNet50',
@@ -81,9 +81,9 @@ args_dict = {'print_freq': 10,
 args = argparse.Namespace(**args_dict)
 filtered_dataset, selected_indices, selected_weights = run_gradmatch_filter(train_split='train', 
                                                                             val_split='test1', 
-                                                                            fraction=0.5, 
+                                                                            fraction=0.1, 
                                                                             random_seed=42, 
-                                                                            epochs=200, 
+                                                                            epochs=1, 
                                                                             balance=True, 
                                                                             lam=1.0,
                                                                             args=args,
