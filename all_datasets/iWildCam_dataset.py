@@ -15,7 +15,10 @@ from all_datasets.task_dataset import TaskDataset
 class iWildCamDataset(TaskDataset):
     def __init__(self, split, subset_path=None, transform=None):
         super().__init__('iWildCam', split, subset_path)
-        self.transform = transforms.Compose([transforms.ToTensor(),
+        if transform:
+            self.transform = transform
+        else:
+            self.transform = transforms.Compose([transforms.ToTensor(),
                                              transforms.Resize(256),  # Resize the shortest side to 256
                                              transforms.CenterCrop(224)])  # Center crop to 224x224
         self.data.dropna(subset=['label'], inplace=True)
@@ -39,7 +42,7 @@ class iWildCamDataset(TaskDataset):
             print(idx)
             print(self.data.iloc[idx])
         image = Image.open(img_path)
-        label = self.data.iloc[idx]['label'] 
+        label = int(self.data.iloc[idx]['label'])
         label_str = self.data.iloc[idx]['category_name'] 
         uid = self.data.iloc[idx]['uid'] 
         time = self.data.iloc[idx]['date']
