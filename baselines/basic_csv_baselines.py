@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/baselines/')
+sys.path.append('/data/vision/beery/scratch/evelyn/task-datacomp/baselines/')
 
 import multiprocessing as mp
 import os
@@ -19,7 +19,7 @@ import torch
 from nltk.corpus import wordnet
 from tqdm import tqdm
 import pdb
-from utils import get_dataset
+from baselines.utils import get_dataset
 
 
 # def load_uids(embedding_path: str) -> np.ndarray:

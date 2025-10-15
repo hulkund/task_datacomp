@@ -19,7 +19,8 @@ BASELINES = {
     "match_dist",
     "image_alignment",
     "text_alignment",
-    "tsds"
+    "tsds",
+    "gradmatch",
 }
 
 def check_args(args):

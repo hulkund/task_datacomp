@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=csail-shared
+#SBATCH --partition=vision-shared-h100,vision-shared-l40s
 #SBATCH --qos=lab-free
 #SBATCH --account=vision-beery
 #SBATCH --gres=gpu:1
@@ -8,8 +8,11 @@
 #SBATCH --mem=50G
 #SBATCH --time=3:00:00
 
-source /data/vision/beery/scratch/neha/.bashrc
+source /data/vision/beery/scratch/evelyn/.bashrc
 
+ 
+# Echo the positional parameters so they're visible in the job output/logs
+echo "Running run_baseline.sh with parameters:  name: $1  embedding_path: $2  save_path: $3  fraction: $4  val_embedding_path: $5  centroids_path: $6"
 
 python baselines.py \
     --name "$1" \

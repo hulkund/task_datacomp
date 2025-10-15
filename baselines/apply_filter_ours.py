@@ -22,6 +22,10 @@ import yaml
 import sys
 from baselines.utils import FaissIndexIVFFlat
 
+import argparse
+from baselines.utils import get_dataset
+from DeepCore.deepcore.methods.gradmatch import GradMatch
+
 def get_fasttext_language(text: str, lang_detect_model: Any) -> str:
     """helper to detect language of a piece of text (fasttext)
 
@@ -435,7 +439,86 @@ def load_uids_with_tsds(
     selected_uids = np.array([uid_array[i] for i in sample_indices])
     return selected_uids
 
+def load_uids_with_gradmatch(
+    dataset_name: str,
+    fraction=0.25, # sweep over [0.25, 0.5, 0.75, 0.9]
+    random_seed=42, 
+    epochs=1, # 200
+    balance=True, 
+    lam=0.5, # use 0.5 - best from paper
+    model=None,
+    args=None
+) -> np.ndarray:
+    # TODO: put a bunch of the args_dict into config (or hard-code them here)
+    args_dict = {'print_freq': 100, 
+                'num_classes': 149, # determine from dataset
+                'device': 'cuda', 
+                'selection_batch': 4, # keep it small to avoid OOM
+                'workers': 4, 
+                'channel':3, # determine from dataset
+                'im_size':[224,224], # determine from dataset
+                'model':'ResNet18', # from paper: ResNet18
+                'selection_optimizer':'SGD', # from the paper
+                'selection_lr':0.01, # 0.01 [0.01,0.001,0.0001]
+                'selection_momentum':0.9, # 0.9 - no sweep
+                'selection_weight_decay':1e-4, # 5e-4 - no sweep
+                'selection_nesterov':True,
+                'selection_test_interval':10,
+                'selection_test_fraction':1.0,
+                'specific_model':None,
+                'torchvision_pretrain':True,
+                'if_dst_pretrain':False,
+                'dst_pretrain_dict':{},
+                'n_pretrain_size':1000,
+                'n_pretrain':1000,
+                'gpu':[0]}
+
+    # Load datasets
+    train_dataset = get_dataset('iWildCam', split='train')
+    val_dataset = get_dataset('iWildCam', split='test1') # use val1
     
+    # look at what type the dataset label target is
+    print(f"Train dataset size: {len(train_dataset)}")
+    print(f"Validation dataset size: {len(val_dataset)}")
+    print(f"Example data point: {type(train_dataset[0][0])}")
+    print(f"Example label type: {type(train_dataset[0][1])}")
+
+    # Prepare model and args (adapt to your setup)
+    # Example: args should have .num_classes, .device, .selection_batch, .print_freq, .workers, etc.
+
+    user_args = vars(args)
+    merged_dict = {**user_args, **args_dict}
+    args = argparse.Namespace(**merged_dict)
+
+    # Initialize GradMatch
+    gradmatch = GradMatch(
+        dst_train=train_dataset,
+        fraction=fraction,
+        random_seed=random_seed,
+        epochs=epochs,
+        specific_model=model,
+        balance=balance,
+        dst_val=val_dataset,
+        lam=lam,
+        args=args
+    )
+    print(gradmatch)
+    # Run selection
+    selection_result = gradmatch.select()
+    selected_indices = selection_result["indices"]
+    selected_weights = selection_result["weights"]
+
+    # Filter your dataset using selected_indices
+    filtered_dataset = torch.utils.data.Subset(train_dataset, selected_indices)
+    print(f"Selected {len(selected_indices)} samples using GradMatch.")
+
+    # Optionally, save indices or filtered dataset
+    # np.save("gradmatch_selected_indices.npy", selected_indices)
+
+    selected_uids = np.array([train_dataset.data.iloc[i]["uid"] for i in selected_indices])
+    # return filtered_dataset, selected_indices, selected_weights, selected_uids
+    return selected_uids
+
     
 def apply_filter(args: Any) -> None:
     """function to route the args to the proper baseline function
@@ -450,6 +533,7 @@ def apply_filter(args: Any) -> None:
 
     uids = None
     print(f"running: {args.name}")
+    print("args:", args)
 
     if args.name == "no_filter":
         uids = load_uids(
@@ -520,6 +604,15 @@ def apply_filter(args: Any) -> None:
             val_embedding_path=args.val_embedding_path,
             pool_embedding_path=args.embedding_path
         )
+    elif args.name == "gradmatch":
+        args.model = 'ResNet18'
+        uids = load_uids_with_gradmatch(
+            dataset_name=args.dataset_name,
+            fraction=args.fraction, 
+            balance=True, 
+            lam=1.0,
+            args=args,
+        )
     else:
         raise ValueError(f"Unknown args.name argument: {args.name}")
 
@@ -527,10 +620,18 @@ def apply_filter(args: Any) -> None:
     uids.sort()
 
     print(f"saving {args.save_path} with {len(uids)} entries")
+    print("uids:", uids)
+
     directory = os.path.dirname(args.save_path)
+    print("os.pwd", os.getcwd())
+    print("this is the directory that needs to be created", directory)
     if not os.path.exists(directory):
+        print("creating directory")
         os.makedirs(directory)
+    print("saving...")
     np.save(args.save_path, uids)
+    print("saved")
+    print(f"File size: {os.path.getsize(args.save_path)} bytes")
     
     
 
