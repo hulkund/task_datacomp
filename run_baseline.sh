@@ -7,12 +7,13 @@
 #SBATCH -c 8
 #SBATCH --mem=50G
 #SBATCH --time=3:00:00
+#SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
 
 source /data/vision/beery/scratch/evelyn/.bashrc
 
  
 # Echo the positional parameters so they're visible in the job output/logs
-echo "Running run_baseline.sh with parameters:  name: $1  embedding_path: $2  save_path: $3  fraction: $4  val_embedding_path: $5  centroids_path: $6"
+echo "Running run_baseline.sh with parameters:  name: $1  embedding_path: $2  save_path: $3  fraction: $4  val_embedding_path: $5  centroids_path: $6  extra args: ${@:7}"
 
 python baselines.py \
     --name "$1" \
@@ -21,5 +22,4 @@ python baselines.py \
 	--fraction $4 \
     --val_embedding_path "$5" \
     --centroids_path "$6" \
-    
-
+    "${@:7}"

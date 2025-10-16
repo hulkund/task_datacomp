@@ -26,6 +26,8 @@ import argparse
 from baselines.utils import get_dataset
 from DeepCore.deepcore.methods.gradmatch import GradMatch
 
+from pathlib import Path
+
 def get_fasttext_language(text: str, lang_detect_model: Any) -> str:
     """helper to detect language of a piece of text (fasttext)
 
@@ -440,42 +442,43 @@ def load_uids_with_tsds(
     return selected_uids
 
 def load_uids_with_gradmatch(
-    dataset_name: str,
     fraction=0.25, # sweep over [0.25, 0.5, 0.75, 0.9]
     random_seed=42, 
-    epochs=1, # 200
+    epochs=200, # from the paper
     balance=True, 
-    lam=0.5, # use 0.5 - best from paper
-    model=None,
+    lam=0.5, # from the paper
     args=None
 ) -> np.ndarray:
     # TODO: put a bunch of the args_dict into config (or hard-code them here)
-    args_dict = {'print_freq': 100, 
-                'num_classes': 149, # determine from dataset
-                'device': 'cuda', 
-                'selection_batch': 4, # keep it small to avoid OOM
-                'workers': 4, 
-                'channel':3, # determine from dataset
-                'im_size':[224,224], # determine from dataset
-                'model':'ResNet18', # from paper: ResNet18
-                'selection_optimizer':'SGD', # from the paper
-                'selection_lr':0.01, # 0.01 [0.01,0.001,0.0001]
-                'selection_momentum':0.9, # 0.9 - no sweep
-                'selection_weight_decay':1e-4, # 5e-4 - no sweep
-                'selection_nesterov':True,
-                'selection_test_interval':10,
-                'selection_test_fraction':1.0,
-                'specific_model':None,
-                'torchvision_pretrain':True,
-                'if_dst_pretrain':False,
-                'dst_pretrain_dict':{},
-                'n_pretrain_size':1000,
-                'n_pretrain':1000,
-                'gpu':[0]}
+    args_dict = {
+        'print_freq': 100, 
+        'device': 'cuda', 
+        'workers': 4, 
+        'model':'ResNet18', # from the paper
+        'selection_optimizer':'SGD', # from the paper
+        'selection_momentum':0.9, # from the paper
+        'selection_weight_decay':1e-4, # from the paper
+        'selection_nesterov':True,
+        'selection_test_interval':10,
+        'selection_test_fraction':1.0,
+        'specific_model':None,
+        'torchvision_pretrain':True,
+        'if_dst_pretrain':False,
+        'dst_pretrain_dict':{},
+        'n_pretrain_size':1000,
+        'n_pretrain':1000,
+        'gpu':[0]
+    }
 
-    # Load datasets
-    train_dataset = get_dataset('iWildCam', split='train')
-    val_dataset = get_dataset('iWildCam', split='test1') # use val1
+    # Load datasets using args.dataset_name and args.val_embedding_path
+    p = Path(args.val_embedding_path) # something like 'all_datasets/iWildCam/embeddings/val1_embeddings.npy'
+    filename = p.name
+    dataset_dir = p.parent.parent.name
+    dataset_name = dataset_dir
+    val_split = filename.split('_')[0]
+    print(f"dataset={dataset_name}, val_split={val_split}")
+    train_dataset = get_dataset(dataset_name, split='train')
+    val_dataset = get_dataset(dataset_name, split=val_split)
     
     # look at what type the dataset label target is
     print(f"Train dataset size: {len(train_dataset)}")
@@ -483,12 +486,26 @@ def load_uids_with_gradmatch(
     print(f"Example data point: {type(train_dataset[0][0])}")
     print(f"Example label type: {type(train_dataset[0][1])}")
 
+    # TODO: determine these values from train_dataset
+    args_dict['num_classes'] = train_dataset.data['label'].nunique()
+    args_dict['channel'] = 3
+    args_dict['im_size'] = [224,224]
+
     # Prepare model and args (adapt to your setup)
     # Example: args should have .num_classes, .device, .selection_batch, .print_freq, .workers, etc.
 
     user_args = vars(args)
+
+    # TODO: can probably cross-reference with config file
+    if 'selection_lr' in user_args:
+        user_args['selection_lr'] = float(user_args['selection_lr'])
+    if 'selection_batch' in user_args:
+        user_args['selection_batch'] = int(user_args['selection_batch'])
+
     merged_dict = {**user_args, **args_dict}
     args = argparse.Namespace(**merged_dict)
+
+    print("Initializing GradMath with args:", vars(args))
 
     # Initialize GradMatch
     gradmatch = GradMatch(
@@ -496,7 +513,6 @@ def load_uids_with_gradmatch(
         fraction=fraction,
         random_seed=random_seed,
         epochs=epochs,
-        specific_model=model,
         balance=balance,
         dst_val=val_dataset,
         lam=lam,
@@ -607,7 +623,6 @@ def apply_filter(args: Any) -> None:
     elif args.name == "gradmatch":
         args.model = 'ResNet18'
         uids = load_uids_with_gradmatch(
-            dataset_name=args.dataset_name,
             fraction=args.fraction, 
             balance=True, 
             lam=1.0,
