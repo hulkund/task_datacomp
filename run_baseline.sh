@@ -5,9 +5,10 @@
 #SBATCH --gres=gpu:1
 #SBATCH --output=slurm/slurm-%J.out
 #SBATCH -c 8
-#SBATCH --mem=50G
-#SBATCH --time=3:00:00
+#SBATCH --mem=100G
+#SBATCH --time=23:00:00
 #SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
+#SBATCH --requeue
 
 source /data/vision/beery/scratch/evelyn/.bashrc
 

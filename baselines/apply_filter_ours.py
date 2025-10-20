@@ -444,7 +444,7 @@ def load_uids_with_tsds(
 def load_uids_with_gradmatch(
     fraction=0.25, # sweep over [0.25, 0.5, 0.75, 0.9]
     random_seed=42, 
-    epochs=200, # from the paper
+    epochs=50, # paper uses 200, but we've found that finetuned ResNet overfits on iWildCam after 50 epochs
     balance=True, 
     lam=0.5, # from the paper
     args=None

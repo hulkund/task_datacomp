@@ -5,9 +5,10 @@
 #SBATCH --output=slurm/slurm-%J.out
 #SBATCH --gres=gpu:1
 #SBATCH -c 8
-#SBATCH --mem=50G
+#SBATCH --mem=100G
 #SBATCH --time=23:00:00
 #SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
+#SBATCH --requeue
 
 source /data/vision/beery/scratch/evelyn/.bashrc
 conda init

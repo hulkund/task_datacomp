@@ -1,8 +1,5 @@
-import itertools
-import json
 import os
 import subprocess
-import shlex
 
 from utils import *
 
@@ -11,10 +8,12 @@ BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 
 RUN_BASELINE = ROOT_DIR / "run_baseline.sh"
+RUN_CSV_BASELNE = ROOT_DIR / "run_csv_baseline.sh"
 RUN_NEW_TRAIN = ROOT_DIR / "baselines/run_new_train.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
 baselines_list = ["gradmatch"]
+# baselines_list = ["no_filter", "random_filter", "match_dist"]
 
 sweep_dict = create_sweep_dict()
 
@@ -55,20 +54,26 @@ for baseline in baselines_list:
                         if not os.path.exists(subset_path):
                             assert "fraction" in param_setting
                             fraction = str(param_setting["fraction"])
-                            command = ["sbatch", str(RUN_BASELINE), baseline, embedding_path, subset_path, fraction, val_embedding_path, centroids_path]
-                            for k, v in param_setting.items():
-                                if k == "fraction": continue
-                                command.append(f"--{k}")
-                                command.append(str(v))
+                            
+                            if  baseline in ["match_dist", "match_label"]:
+                                task_num = test_split[4]
+                                command = ["sbatch", str(RUN_CSV_BASELNE), baseline, dataset, task_num, fraction, subset_path]
+                            else:
+                                command = ["sbatch", str(RUN_BASELINE), baseline, embedding_path, subset_path, fraction, val_embedding_path, centroids_path]
+                                for k, v in param_setting.items():
+                                    if k == "fraction": continue
+                                    command.append(f"--{k}")
+                                    command.append(str(v))
+                            
                             print("Running command to create subset:", " ".join(command))
                             subprocess.call(command)
 
-                        # Run new training job to evaluate the param settings
-                        metrics_path    = save_folder + f"{test_split}_{finetune_type}_lr={lr}_metrics.json"
-                        checkpoint_path = save_folder + f"{test_split}_finetune={finetune_type}_lr={lr}_batchsize={batch_size}"
-                        training_task = datasets_config[dataset]["training_task"]
-                        if not os.path.exists(metrics_path) and os.path.exists(subset_path):
-                            command = ["sbatch", str(RUN_NEW_TRAIN), dataset, subset_path, save_folder, "configs/datasets.yaml", str(lr), finetune_type, str(batch_size), checkpoint_path, training_task]
-                            print("Running command to run new train:", " ".join(command))
-                            subprocess.call(command)
+                        # # Run new training job to evaluate the param settings
+                        # metrics_path    = save_folder + f"{test_split}_{finetune_type}_lr={lr}_metrics.json"
+                        # checkpoint_path = save_folder + f"{test_split}_finetune={finetune_type}_lr={lr}_batchsize={batch_size}"
+                        # training_task = datasets_config[dataset]["training_task"]
+                        # if not os.path.exists(metrics_path) and os.path.exists(subset_path):
+                        #     command = ["sbatch", str(RUN_NEW_TRAIN), dataset, subset_path, save_folder, "configs/datasets.yaml", str(lr), finetune_type, str(batch_size), checkpoint_path, training_task]
+                        #     print("Running command to run new train:", " ".join(command))
+                        #     subprocess.call(command)
 
