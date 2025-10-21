@@ -6,11 +6,14 @@ from typing import List, Union
 
 train_csv_path = "/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/new_splits/train.csv"
 
-def plot_label_distributions(
+UID_COL = "uid"
+LABEL_COL = "category_id"
+
+def plot_train_and_subsets(
     subset_paths: Union[str, List[str]],
     train_csv_path: str = train_csv_path,
-    uid_col: str = "uid",
-    label_col: str = "category_id",
+    uid_col: str = UID_COL,
+    label_col: str = LABEL_COL,
     top_n: int = 50,
     colors: List[str] = None,
 ):
@@ -86,6 +89,101 @@ def plot_label_distributions(
         axes[i].grid(False)
 
     # Shared x-axis
+    axes[-1].set_xlabel(f"Label", fontsize=12)
+    axes[-1].set_xticks(range(len(top_labels)))
+    axes[-1].set_xticklabels(top_labels, rotation=90)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_test_and_subsets(
+    test_csv_path: str,
+    train_csv_path: str,
+    subset_paths: Union[str, List[str]],
+    uid_col: str = UID_COL,
+    label_col: str = LABEL_COL,
+    top_n: int = 50,
+    colors: List[str] = None,
+):
+    """
+    Plots label frequency distributions for a test CSV and one or more subset .npy files.
+    Uses train.csv only to map UIDs → labels for the subsets.
+
+    Parameters
+    ----------
+    test_csv_path : str
+        Path to the CSV representing the test dataset (reference histogram).
+    train_csv_path : str
+        Path to the training CSV with UID → label mapping.
+    subset_paths : str | list[str]
+        Path or list of paths to .npy files containing subset UIDs.
+    uid_col : str, optional
+        Column name for the UID. Defaults to "UID".
+    label_col : str, optional
+        Column name for the label. Defaults to "label".
+    top_n : int, optional
+        Number of top most frequent labels to display. Defaults to 50.
+    colors : list[str], optional
+        Custom list of colors for the bars. Automatically assigned if None.
+    """
+
+    # Normalize subset paths
+    if isinstance(subset_paths, str):
+        subset_paths = [subset_paths]
+
+    n_subsets = len(subset_paths)
+
+    # --- Load data ---
+    test_df = pd.read_csv(test_csv_path)
+    train_df = pd.read_csv(train_csv_path)
+
+    if label_col not in test_df.columns or label_col not in train_df.columns:
+        raise ValueError(f"Both CSVs must contain a '{label_col}' column.")
+
+    # --- Compute label frequencies for test set ---
+    test_label_counts = test_df[label_col].value_counts()
+    top_labels = test_label_counts.index[:top_n]
+    test_freqs = [test_label_counts.get(lbl, 0) for lbl in top_labels]
+
+    # --- Compute label frequencies for each subset using train.csv mapping ---
+    subset_counts = []
+    for path in subset_paths:
+        subset_uids = np.load(path, allow_pickle=True)
+        subset_df = train_df[train_df[uid_col].isin(subset_uids)]
+        subset_label_counts = subset_df[label_col].value_counts()
+        freqs = [subset_label_counts.get(lbl, 0) for lbl in top_labels]
+        subset_name = os.path.basename(os.path.dirname(path))
+        subset_counts.append((subset_name, freqs))
+
+    # --- Colors ---
+    if colors is None:
+        colors = ["gray"] + list(plt.cm.tab10.colors[:n_subsets])
+    else:
+        colors = ["gray"] + list(colors)
+
+    # --- Plot ---
+    fig, axes = plt.subplots(1 + n_subsets, 1, figsize=(14, 4 * (1 + n_subsets)), sharex=True)
+
+    # Plot test set histogram
+    axes[0].bar(range(len(top_labels)), test_freqs, color=colors[0])
+    axes[0].set_yscale("log")
+    axes[0].set_title(f"Deployment 1 class frequency: {os.path.basename(test_csv_path)}", fontsize=14)
+    axes[0].set_ylabel("# of Images", fontsize=12)
+    axes[0].grid(False)
+
+    # Plot subsets
+    for i, (subset_name, freqs) in enumerate(subset_counts, start=1):
+        axes[i].bar(range(len(top_labels)), freqs, color=colors[i % len(colors)])
+        if any(f > 0 for f in freqs):
+            axes[i].set_yscale("log")
+        else:
+            axes[i].set_yscale("linear")
+        axes[i].set_title(f"Subset {i}: {subset_name}", fontsize=13)
+        axes[i].set_ylabel("# of Images", fontsize=12)
+        axes[i].grid(False)
+
+    # Shared x-axis labels
     axes[-1].set_xlabel(f"Label", fontsize=12)
     axes[-1].set_xticks(range(len(top_labels)))
     axes[-1].set_xticklabels(top_labels, rotation=90)
