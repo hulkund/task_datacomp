@@ -19,7 +19,8 @@ BASELINES = {
     "match_dist",
     "image_alignment",
     "text_alignment",
-    "tsds"
+    "tsds",
+    "gradmatch",
 }
 
 def check_args(args):
@@ -176,7 +177,19 @@ if __name__ == "__main__":
     #     default=None,
     # )
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
+
+    # This allows us to accept unspecified parameters, which is useful
+    # for passing parameters for more complicated method
+    args, unknown = parser.parse_known_args()
+    if unknown:
+        print("[Warning] Adding unknown args:", unknown)
+    
+    it = iter(unknown)
+    extra_args = {k.lstrip("-"): v for k, v in zip(it, it)}
+    for k, v in extra_args.items():
+        setattr(args, k, v)
+
     # all error checking happens here and apply_filter assumes correct input
     check_args(args)
     print(args.dataset_name)

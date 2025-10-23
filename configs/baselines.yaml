@@ -29,3 +29,7 @@ match_label:
 tsds:
     task: "tasks"
     fraction_list: [1]
+
+gradmatch:
+    task: "tasks"
+    fraction_list: [0.25]
