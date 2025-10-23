@@ -4,11 +4,11 @@ import clip
 import torch
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.append('/data/vision/beery/scratch/evelyn/task-datacomp/')
+sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
 from all_datasets.FMoW_dataset import FMoWDataset
 from all_datasets.COOS_dataset import COOSDataset
 from all_datasets.iWildCam_dataset import iWildCamDataset
-# from all_datasets.iWildCamCropped_dataset import iWildCamCroppedDataset
+from all_datasets.iWildCamCropped_dataset import iWildCamCroppedDataset
 from all_datasets.CivilComments_dataset import CivilCommentsDataset
 from all_datasets.GeoDE_dataset import GeoDEDataset
 from all_datasets.AutoArborist_dataset import AutoArboristDataset
