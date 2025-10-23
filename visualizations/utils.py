@@ -7,7 +7,7 @@ from typing import List, Union
 train_csv_path = "/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/new_splits/train.csv"
 
 UID_COL = "uid"
-LABEL_COL = "category_id"
+LABEL_COL = "label"
 
 def plot_train_and_subsets(
     subset_paths: Union[str, List[str]],
