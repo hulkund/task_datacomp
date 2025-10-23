@@ -1,7 +1,7 @@
 import os
 import torch
 import sys
-sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
+sys.path.append('/data/vision/beery/scratch/evelyn/task-datacomp/')
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import argparse
