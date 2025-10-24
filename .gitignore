@@ -16,3 +16,5 @@ baselines/tsds_data/
 baselines/old_files/
 baselines/runs/
 __pycache__/
+zcore/data/
+zcore/results/
