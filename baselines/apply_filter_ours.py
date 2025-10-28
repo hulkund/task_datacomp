@@ -28,6 +28,8 @@ from DeepCore.deepcore.methods.gradmatch import GradMatch
 
 from pathlib import Path
 
+import zcore.core.coreset as cs
+
 def get_fasttext_language(text: str, lang_detect_model: Any) -> str:
     """helper to detect language of a piece of text (fasttext)
 
@@ -535,7 +537,52 @@ def load_uids_with_gradmatch(
     # return filtered_dataset, selected_indices, selected_weights, selected_uids
     return selected_uids
 
+def load_uids_with_zcore(
+    fraction=0.25,
+    args=None
+) -> np.ndarray:
+    p = Path(args.val_embedding_path) # something like 'all_datasets/iWildCam/embeddings/val1_embeddings.npy'
+    filename = p.name
+    dataset_dir = p.parent.parent.name
+    dataset_name = dataset_dir
+
+    train_dataset = get_dataset(dataset_name, split="train")
+
+    embedding_path = args.embedding_path
+    embeddings = np.load(embedding_path, allow_pickle=True)
+
+    args_dict = {
+        "trial": 0,
+        "dataset": dataset_name,
+        "num_workers": 10,
+        "rand_init": True,
+        "redund_exp": 4,
+    }
     
+    user_args = vars(args)
+
+    custom_args = ['n_sample', 'redund_nn', 'sample_dim']
+    for arg in custom_args:
+        if arg in user_args:
+            user_args[arg] = int(user_args[arg])
+
+    merged_dict = {**user_args, **args_dict}
+    args = argparse.Namespace(**merged_dict)
+
+    print("args:", args)
+
+    scores = cs.zcore_score(args, embeddings)
+
+    k = int(fraction * len(train_dataset))
+    top = np.argpartition(scores, -k)
+    selected_indices = top[-k:]
+
+    selected_indices = selected_indices[selected_indices < len(train_dataset)]
+    selected_uids = [train_dataset.data.iloc[i]["uid"] for i in selected_indices]
+
+    return selected_uids
+
+
 def apply_filter(args: Any) -> None:
     """function to route the args to the proper baseline function
 
@@ -626,6 +673,11 @@ def apply_filter(args: Any) -> None:
             fraction=args.fraction, 
             balance=True, 
             lam=1.0,
+            args=args,
+        )
+    elif args.name == "zcore":
+        uids = load_uids_with_zcore(
+            fraction=args.fraction,
             args=args,
         )
     else:

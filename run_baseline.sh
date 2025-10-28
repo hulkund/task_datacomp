@@ -6,7 +6,7 @@
 #SBATCH --output=slurm/slurm-%J.out
 #SBATCH -c 8
 #SBATCH --mem=100G
-#SBATCH --time=1-12:00:00
+#SBATCH --time=2-12:00:00
 #SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
 #SBATCH --requeue
 

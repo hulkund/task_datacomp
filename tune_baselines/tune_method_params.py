@@ -12,8 +12,9 @@ RUN_CSV_BASELNE = ROOT_DIR / "run_csv_baseline.sh"
 RUN_NEW_TRAIN = ROOT_DIR / "baselines/run_new_train.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
-baselines_list = ["gradmatch"]
+# baselines_list = ["gradmatch"]
 # baselines_list = ["no_filter", "random_filter", "match_dist"]
+baselines_list = ["zcore"]
 
 sweep_dict = create_sweep_dict()
 
@@ -45,6 +46,11 @@ for baseline in baselines_list:
                 for lr in lr_list:
                     for batch_size in batch_size_list:
                         embedding_path      = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
+                        
+                        # hard-coded case
+                        if baseline == "zcore":
+                            embedding_path = "/data/vision/beery/scratch/neha/task-datacomp/experiments_again/iWildCam/no_filter_1/embeddings/all_subset_resnet50.npy"
+
                         centroids_path      = f"all_datasets/{dataset}/centroids/train_centroids.pt"
                         val_embedding_path  = f"all_datasets/{dataset}/embeddings/{val_split}_embeddings.npy"
                         save_folder = create_save_folder(dataset, baseline, param_setting)

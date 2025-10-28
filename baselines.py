@@ -21,6 +21,7 @@ BASELINES = {
     "text_alignment",
     "tsds",
     "gradmatch",
+    "zcore",
 }
 
 def check_args(args):

@@ -1,4 +1,8 @@
 gradmatch:
+    # fraction: [0.5, 0.75, 0.9]
+    # selection_lr: [0.01]
+    # selection_batch: [4]
+
     fraction: [0.25, 0.5, 0.75, 0.9]
     selection_lr: [0.01, 0.001, 0.0001]
     selection_batch: [4, 16]
@@ -20,3 +24,9 @@ random_filter:
 
 match_dist:
     fraction: [0.25, 0.5, 0.75, 0.9]
+
+zcore:
+    fraction: [0.25, 0.5, 0.75, 0.9]
+    n_sample: [500, 5000, 10000]
+    redund_nn: [100, 1000, 10000]
+    sample_dim: [2, 4, 6]

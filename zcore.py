@@ -1,24 +1,33 @@
 import argparse
 import numpy as np
 import os
+
+print("here")
 from baselines.utils import get_dataset
 
 import zcore.core.coreset as cs
 
 def get_my_embeddings():
-    embed_file = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/embeddings/train_embeddings.npy"
+    embed_file = "/data/vision/beery/scratch/neha/task-datacomp/experiments_again/iWildCam/no_filter_1/embeddings/all_subset_resnet50.npy"
     model_embed = np.load(embed_file, allow_pickle=True)
 
+    # print("type:", type(model_embed))
+
     # only look at image embeddings for now
-    embeddings = np.vstack([d["image_embedding"] for d in model_embed])
-    return embeddings
+    # embeddings = np.vstack([d["image_embedding"] for d in model_embed])
+    # return embeddings
+    return model_embed
 
 def main(args, fraction=0.25):
+    print("in here 1")
     subset_path = f"/data/vision/beery/scratch/evelyn/task_datacomp/experiments/iWildCam/zcore_fraction_{fraction}/test1_subset.npy"
     os.makedirs(os.path.dirname(subset_path), exist_ok=True)
+    print("in here 2")
 
     train_dataset = get_dataset('iWildCam', split="train")
+    print("in here 3")
     embeddings = get_my_embeddings()
+    print("in here 4")
     scores = cs.zcore_score(args, embeddings)
 
     print("len(train_dataset):", len(train_dataset))
