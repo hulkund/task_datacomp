@@ -14,14 +14,22 @@ DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
 # baselines_list = ["gradmatch"]
 # baselines_list = ["no_filter", "random_filter", "match_dist"]
-baselines_list = ["zcore"]
+# baselines_list = ["zcore"]
+baselines_list = ["no_filter", "random_filter", "match_dist", "gradmatch", "zcore"]
 
 sweep_dict = create_sweep_dict()
 
 ### For evaluation ###
 
 # Instead of using a config to define the 'tasks' we want to evaluate, we define them here
-dataset_list = [('iWildCam', 'val1', 'test1')] # (dataset, val_split, test_split)
+# dataset_list = [('iWildCam', 'val1', 'test1')] # (dataset, val_split, test_split)
+
+dataset_list = [
+    ('iWildCam', 'val1', 'test1'),
+    ('iWildCam', 'val2', 'test2'),
+    ('iWildCam', 'val3', 'test3'),
+    ('iWildCam', 'val4', 'test4')
+]
 
 finetune_list = ["full_finetune_resnet50"]
 lr_list = [0.001]
@@ -36,7 +44,7 @@ for baseline in baselines_list:
     print("="*50)
     print(f"Tuning method params for {baseline}")
     params = sweep_dict[baseline]
-    for param_setting in get_sweep_combinations(params):
+    for param_setting in get_sweep_combinations(params, baseline):
         print("Trying param configuration:", param_setting)
 
         for dataset, val_split, test_split in dataset_list:
