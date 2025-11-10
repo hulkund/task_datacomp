@@ -1,3 +1,4 @@
+import pdb
 import torch
 import numpy as np
 from scipy.linalg import lstsq
@@ -65,20 +66,11 @@ class GradMatch(EarlyTrain):
                 else:
                     A_i = torch.cat((A_i, A[:, index].view(1, -1)), dim=0)
                     temp = torch.matmul(A_i, torch.transpose(A_i, 0, 1)) + lam * torch.eye(A_i.shape[0], device="cuda")
-                    # x_i, _ = torch.lstsq(torch.matmul(A_i, b).view(-1, 1), temp)
+                    # x_i, _ = torch.lstsq(torch.matmul(A_i, b).view(-1, 1), temp) # Deprecated
                     x_i = torch.linalg.lstsq(temp, torch.matmul(A_i, b).view(-1, 1)).solution
                 resid = b - torch.matmul(torch.transpose(A_i, 0, 1), x_i).view(-1)
             if budget > 1:
-                # x_i = nnls(temp.cpu().numpy(), torch.matmul(A_i, b).view(-1).cpu().numpy())[0]
-                                # Sanitize arrays before SciPy call
-                A_np = temp.cpu().numpy()
-                b_np = torch.matmul(A_i, b).view(-1).cpu().numpy()
-
-                # Replace NaNs/Infs with finite numbers
-                A_np = np.nan_to_num(A_np, nan=0.0, posinf=1e6, neginf=-1e6)
-                b_np = np.nan_to_num(b_np, nan=0.0, posinf=1e6, neginf=-1e6)
-
-                x_i = nnls(A_np, b_np)[0]
+                x_i = nnls(temp.cpu().numpy(), torch.matmul(A_i, b).view(-1).cpu().numpy())[0]
                 x[indices] = x_i
             elif budget == 1:
                 x[indices[0]] = 1.
@@ -188,7 +180,12 @@ class GradMatch(EarlyTrain):
                         cur_val_gradients = torch.mean(self.calc_gradient(val_class_index, val=True), dim=0)
                     else:
                         cur_val_gradients = torch.mean(cur_gradients, dim=0)
-                    if self.args.device == "cpu":
+                    
+                    # Added for handling imbalanced labels in validation set
+                    if torch.isnan(cur_val_gradients).all().item():
+                        d, n = cur_gradients.shape
+                        cur_weights = np.zeros(n, dtype=np.float32) # solving Ax=b for b=0 => x=0
+                    elif self.args.device == "cpu":
                         # Compute OMP on numpy
                         cur_weights = self.orthogonal_matching_pursuit_np(cur_gradients.numpy().T,
                                                                           cur_val_gradients.numpy(),
@@ -197,6 +194,7 @@ class GradMatch(EarlyTrain):
                         cur_weights = self.orthogonal_matching_pursuit(cur_gradients.to(self.args.device).T,
                                                                        cur_val_gradients.to(self.args.device),
                                                                        budget=round(len(class_index) * self.fraction))
+                        
                     selection_result = np.append(selection_result, class_index[np.nonzero(cur_weights)[0]])
                     weights = np.append(weights, cur_weights[np.nonzero(cur_weights)[0]])
             else:
