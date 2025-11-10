@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from typing import List, Union
 
 from visualizations.file_utils import create_confusion_matrix_png_save_path, create_per_class_accuracy_json_save_path
+from baselines.utils import get_dataset
 
 train_csv_path = "/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/new_splits/train.csv"
 
@@ -197,28 +198,46 @@ def plot_test_and_subsets(
     plt.show()
 
 
+def get_class_accuracies(pt_path: str, save_json: bool = False) -> dict:
+    data = torch.load(pt_path, map_location="cpu")
+    labels = np.array(data["labels"])
+    preds  = np.array(data["preds"])
+    mapping = data["mapping"]
+
+    class_acc = {}
+    for true_c in mapping:
+        mapped_c = mapping[true_c]
+        idx = (labels == mapped_c)
+        if idx.sum() > 0:
+            class_acc[true_c] = (preds[idx] == labels[idx]).mean()
+
+    if save_json:
+            json_save_path = create_per_class_accuracy_json_save_path(pt_path)
+            with open(json_save_path, "w") as jf:
+                json.dump(class_acc, jf, indent=2)
+            print(f"Class accuracy dictionary saved to: {json_save_path}")
+    
+    return class_acc
+
+
 def plot_confusion_matrix_from_pt(
     pt_path: str,
-    show_counts: bool = False,
     normalize: bool = True,
+    annot=False,
     figsize: tuple = (8, 6),
     cmap: str = "Blues",
-    show_plot: bool = False,
     save_png: bool = True,
-    save_json: bool = True,
 ):
     """
     Load a saved logits .pt file and plot its confusion matrix.
 
     Args:
         pt_path (str): Path to the .pt file containing logits, labels, preds, and mapping.
-        show_counts (bool): Whether to display the unnormalized confusion matrix as well.
         normalize (bool): Whether to normalize confusion matrix rows (true label fractions).
+        annot (bool): Whether to add the annotation to each cell.
         figsize (tuple): Size of the matplotlib figure.
         cmap (str): Colormap used for the heatmap.
-        show_plot (bool): If true, displays the plot.
         save_png (bool): If true, saves the confusion matrix figure to confusion_matrix.png.
-        save_json (bool): If true, save class_id → accuracy mapping as JSON.
 
     The .pt file must contain:
         - 'logits': torch.Tensor
@@ -227,30 +246,12 @@ def plot_confusion_matrix_from_pt(
         - 'mapping': dict mapping class_name -> class_index
     """
 
-    # ---- Load and unpack ----
     data = torch.load(pt_path, map_location="cpu")
     labels = np.array(data["labels"])
     preds  = np.array(data["preds"])
     mapping = data["mapping"]
 
     num_classes = len(mapping)
-
-    # ---- Accuracy metrics ----
-    overall_acc = (preds == labels).mean()
-    class_acc = np.full(num_classes, np.nan)
-    for c in range(num_classes):
-        idx = (labels == c)
-        if idx.sum() > 0:
-            class_acc[c] = (preds[idx] == labels[idx]).mean()
-
-    # mean_valid_acc = np.nanmean(class_acc)
-    print(f"\nOverall accuracy: {overall_acc:.4f}")
-    # print(f"Mean per-class accuracy (seen classes only):\n")
-    # for value, idx in mapping.items():
-    #     if not np.isnan(class_acc[idx]):
-    #         print(f"  {value:<15}: {class_acc[idx]:.4f}")
-        # else:
-        #     print(f"  {value:<15}: (no samples)")
 
     # ---- Confusion matrix ----
     conf_mat = np.zeros((num_classes, num_classes), dtype=int)
@@ -259,7 +260,14 @@ def plot_confusion_matrix_from_pt(
 
     present_classes = np.unique(labels)
     conf_mat_subset = conf_mat[np.ix_(present_classes, present_classes)]
-    class_names = [list(mapping.keys())[i] for i in present_classes]
+
+    scientific_name_mapping = get_dataset('iWildCam', 'train').mapping
+    csv = "/data/vision/beery/scratch/neha/task-datacomp/OT_project/relabeling_algorithms/remapping.csv"
+    common_name_mapping = pd.read_csv(csv, header=None)
+    # common_name_mapping = {k.lower() : v.lower() for k, v in common_name_mapping.items()}
+    common_name_mapping = dict(zip(common_name_mapping[0].str.lower(),common_name_mapping[1].str.lower()))
+
+    class_names = [common_name_mapping[scientific_name_mapping[list(mapping.keys())[i]]] for i in present_classes]
 
     # Normalize rows (true label distribution)
     if normalize:
@@ -280,7 +288,7 @@ def plot_confusion_matrix_from_pt(
     plt.figure(figsize=figsize)
     sns.heatmap(
         conf_mat_plot,
-        annot=True,
+        annot=annot,
         fmt=fmt,
         cmap=cmap,
         xticklabels=class_names,
@@ -296,34 +304,5 @@ def plot_confusion_matrix_from_pt(
         png_save_path = create_confusion_matrix_png_save_path(pt_path)
         plt.savefig(png_save_path, dpi=300)
         print(f"\nConfusion matrix saved to {png_save_path}")
-
-    if save_json:
-        json_save_path = create_per_class_accuracy_json_save_path(pt_path)
-        acc_dict = {}
-        for label_id, acc in enumerate(class_acc):
-            if not np.isnan(acc):
-                acc_dict[str(label_id)] = round(float(acc), 4)
-        with open(json_save_path, "w") as jf:
-            json.dump(acc_dict, jf, indent=2)
-        print(f"Class accuracy dictionary saved to: {json_save_path}")
-
-    if show_plot:
-        plt.show()
-
-    # ---- Optional: unnormalized version ----
-    if show_plot and show_counts and normalize:
-        plt.figure(figsize=figsize)
-        sns.heatmap(
-            conf_mat_subset,
-            annot=True,
-            fmt="d",
-            cmap=cmap,
-            xticklabels=class_names,
-            yticklabels=class_names,
-            cbar_kws={'label': 'Count'}
-        )
-        plt.title("Unnormalized Confusion Matrix (Counts)")
-        plt.xlabel("Predicted Class")
-        plt.ylabel("True Class")
-        plt.tight_layout()
-        plt.show()
+    
+    plt.show()
