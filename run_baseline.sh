@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=vision-beery
-#SBATCH --qos=vision-beery-main
+#SBATCH --qos=vision-beery-free
 #SBATCH --account=vision-beery
 #SBATCH --gres=gpu:1
 #SBATCH --output=slurm/slurm-%J.out
@@ -14,7 +14,7 @@ source /data/vision/beery/scratch/evelyn/.bashrc
 
  
 # Echo the positional parameters so they're visible in the job output/logs
-echo "Running run_baseline.sh with parameters:  name: $1  embedding_path: $2  save_path: $3  fraction: $4  val_embedding_path: $5  centroids_path: $6  extra args: ${@:7}"
+echo "Running run_baseline.sh with parameters:  name: $1  embedding_path: $2  save_path: $3  fraction: $4  val_embedding_path: $5  centroids_path: $6  supervsed: $7  extra args: ${@:8}"
 
 python baselines.py \
     --name "$1" \
@@ -23,4 +23,5 @@ python baselines.py \
 	--fraction $4 \
     --val_embedding_path "$5" \
     --centroids_path "$6" \
-    "${@:7}"
+    --supervised "$7" \
+    "${@:8}"

@@ -26,6 +26,8 @@ import argparse
 from baselines.utils import get_dataset
 from DeepCore.deepcore.methods.gradmatch import GradMatch
 
+from torch.utils.data import Subset
+
 from pathlib import Path
 
 import zcore.core.coreset as cs
@@ -106,6 +108,8 @@ def load_uids_with_clip_score(
     threshold: float,
     fraction: float,
     num_workers: int,
+    train_csv_path = None,
+    val_csv_path = None,
 ) -> np.ndarray:
     """load in metadata with a threshold applied
 
@@ -126,9 +130,19 @@ def load_uids_with_clip_score(
     key = "similarity_score"
     if threshold is None:
         # convert a fraction into a threshold
-        threshold, embed_df = get_threshold(embedding_path, key, fraction)
+        threshold, embed_df = get_threshold(
+            embedding_path,
+            key,
+            fraction,
+            train_csv_path,
+            val_csv_path
+        )
     else: 
-        embed_df = load_embedding(embedding_path)
+        embed_df = load_embedding(
+            embedding_path,
+            train_csv_path=train_csv_path,
+            val_csv_path=val_csv_path
+        )
     uids=np.array([uid for uid in embed_df[embed_df[key] >= threshold]["uid"]])
     return uids
 
@@ -226,15 +240,31 @@ def load_uids_with_text_alignment(
     
 
 
-def load_embedding(embedding_path:str, columns):
+def load_embedding(embedding_path: str, columns, train_csv_path = None, val_csv_path = None):
     embed = np.load(f"{embedding_path}",allow_pickle=True)
     embed_df=pd.DataFrame()
     for col in columns:
         embed_df[col] = [e[col] for e in embed]
+    
+    if train_csv_path and val_csv_path:
+        print("in here")
+        train_csv_df = pd.read_csv(train_csv_path)
+        uid_to_label_map = {row["uid"] : row["label"] for _, row in train_csv_df.iterrows()}
+
+        val_csv_df = pd.read_csv(val_csv_path)
+        val_labels = set(val_csv_df["label"])
+        print("val_labels:", val_labels)
+
+        allowed_uids = {uid for uid, label in uid_to_label_map.items() if label in val_labels}
+        print("len(allowed_uids):", len(allowed_uids))
+
+        embed_df = embed_df[embed_df["uid"].isin(allowed_uids)]
+        embed_df = embed_df.reset_index(drop=True)
+  
     return embed_df
 
 def get_threshold(
-    embedding_path: str, key: str, fraction: float
+    embedding_path: str, key: str, fraction: float, train_csv_path = None, val_csv_path = None,
 ) -> float:
     """compute a threshold given a collection of metadata, a key, and a target fraction of the pool to keep
 
@@ -248,7 +278,12 @@ def get_threshold(
         float: threshold value
     """
     print("loading all metadata for threshold computation")
-    embed_df = load_embedding(embedding_path, columns=[key,"uid"])
+    embed_df = load_embedding(
+        embedding_path,
+        columns=[key,"uid"],
+        train_csv_path=train_csv_path,
+        val_csv_path=val_csv_path
+    )
     n = int(len(embed_df) * fraction)
     threshold = -np.sort(-embed_df[key].values)[n]
     return threshold, embed_df
@@ -327,7 +362,7 @@ def load_uids_with_modality_filter(
     return np.array(uids_to_keep)
 
 
-def load_uids(embedding_path: str) -> np.ndarray:
+def load_uids(embedding_path: str, train_csv_path = None, val_csv_path = None) -> np.ndarray:
     """helper to read a embedding and load uids
 
     Args:
@@ -336,11 +371,27 @@ def load_uids(embedding_path: str) -> np.ndarray:
     Returns:
         np.ndarray: array of uids
     """
-    df = load_embedding(embedding_path, columns=["uid"])
+    df = load_embedding(
+        embedding_path,
+        columns=["uid"],
+        train_csv_path=train_csv_path,
+        val_csv_path=val_csv_path
+    )
+    print("return length:", len(np.array(df['uid'])))
     return np.array(df['uid'])
 
-def load_uids_with_random_filter(embedding_path: str, subset_percent: float) -> np.ndarray:
-    embed_df=load_embedding(embedding_path, columns=["uid"])
+def load_uids_with_random_filter(
+    embedding_path: str,
+    subset_percent: float,
+    train_csv_path = None,
+    val_csv_path = None
+) -> np.ndarray:
+    embed_df=load_embedding(
+        embedding_path,
+        columns=["uid"],
+        train_csv_path=train_csv_path,
+        val_csv_path=val_csv_path
+    )
     uids_selected=embed_df.sample(frac=subset_percent,random_state=42)
     return np.array(uids_selected).squeeze(axis=1)
 
@@ -598,9 +649,25 @@ def apply_filter(args: Any) -> None:
     print(f"running: {args.name}")
     print("args:", args)
 
+    train_csv_path = None
+    val_csv_path = None
+    if args.supervised == "True":
+        p = Path(args.val_embedding_path) # something like 'all_datasets/iWildCam/embeddings/val1_embeddings.npy'
+
+        dataset_dir = p.parent.parent.name
+        dataset_name = dataset_dir
+        train_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/new_splits/train.csv"
+
+        filename = p.name
+        val_split = filename.split('_')[0]
+        val_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/new_splits/{val_split}_id.csv"
+
+
     if args.name == "no_filter":
         uids = load_uids(
-            args.embedding_path
+            args.embedding_path,
+            train_csv_path,
+            val_csv_path,
         )
     # elif args.name == "basic_filter":
     #     uids = load_uids_with_basic_filter(
@@ -610,7 +677,9 @@ def apply_filter(args: Any) -> None:
     elif args.name == "random_filter":
         uids = load_uids_with_random_filter(
             embedding_path=args.embedding_path,
-            subset_percent=args.fraction
+            subset_percent=args.fraction,
+            train_csv_path=train_csv_path,
+            val_csv_path=val_csv_path,
         )
     elif args.name == "image_based":
         uids = load_uids_with_modality_filter(
@@ -636,6 +705,8 @@ def apply_filter(args: Any) -> None:
             threshold=args.threshold,
             fraction=args.fraction,
             num_workers=0,
+            train_csv_path=train_csv_path,
+            val_csv_path=val_csv_path,
         )
     elif args.name == "image_clip":
         print(f"threshold {args.threshold} and fraction {args.fraction}")

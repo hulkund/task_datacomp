@@ -12,10 +12,12 @@ RUN_CSV_BASELNE = ROOT_DIR / "run_csv_baseline.sh"
 RUN_NEW_TRAIN = ROOT_DIR / "baselines/run_new_train.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
-# baselines_list = ["gradmatch"]
+baselines_list = ["gradmatch"]
 # baselines_list = ["no_filter", "random_filter", "match_dist"]
 # baselines_list = ["zcore"]
-baselines_list = ["no_filter", "random_filter", "match_dist", "gradmatch", "zcore"]
+# baselines_list = ["no_filter", "random_filter", "match_dist", "gradmatch", "zcore"]
+# baselines_list = ["clip_score", "random_filter"]
+# baselines_list = ["no_filter", "random_filter", "match_dist", "clip_score"]
 
 sweep_dict = create_sweep_dict()
 
@@ -26,10 +28,13 @@ sweep_dict = create_sweep_dict()
 
 dataset_list = [
     ('iWildCam', 'val1', 'test1'),
-    ('iWildCam', 'val2', 'test2'),
-    ('iWildCam', 'val3', 'test3'),
-    ('iWildCam', 'val4', 'test4')
+    # ('iWildCam', 'val2', 'test2'),
+    # ('iWildCam', 'val3', 'test3'),
+    # ('iWildCam', 'val4', 'test4')
 ]
+
+supervised = "True"
+# supervised = "False"
 
 finetune_list = ["full_finetune_resnet50"]
 lr_list = [0.001]
@@ -73,7 +78,7 @@ for baseline in baselines_list:
                                 task_num = test_split[4]
                                 command = ["sbatch", str(RUN_CSV_BASELNE), baseline, dataset, task_num, fraction, subset_path]
                             else:
-                                command = ["sbatch", str(RUN_BASELINE), baseline, embedding_path, subset_path, fraction, val_embedding_path, centroids_path]
+                                command = ["sbatch", str(RUN_BASELINE), baseline, embedding_path, subset_path, fraction, val_embedding_path, centroids_path, supervised]
                                 for k, v in param_setting.items():
                                     if k == "fraction": continue
                                     command.append(f"--{k}")
