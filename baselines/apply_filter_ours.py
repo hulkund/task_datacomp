@@ -58,11 +58,7 @@ def apply_filter(args: Any) -> None:
         uids = load_uids(
             args.embedding_path
         )
-    # elif args.name == "basic_filter":
-    #     uids = load_uids_with_basic_filter(
-    #         args.embedding_path,
-    #         args.num_workers,
-    #     )
+
     elif args.name == "random_filter":
         uids = load_uids_with_random_filter(
             embedding_path=args.embedding_path,

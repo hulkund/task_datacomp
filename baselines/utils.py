@@ -21,18 +21,8 @@ from torch.utils.data import DataLoader, random_split, Subset
 from sklearn.model_selection import train_test_split
 import faiss
 import numpy as np
+import pdb
 
-
-# def get_train_val_dl(dataset, batch_size):
-#     train_size = int(0.9 * len(dataset))
-#     test_size = len(dataset) - train_size
-#     train_dataset, val_dataset = random_split(dataset,[train_size,test_size])
-#     train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, num_workers=1, shuffle=True)
-#     val_dataloader = DataLoader(dataset=val_dataset, batch_size=batch_size, num_workers=1, shuffle=True)
-#     train_labels = torch.tensor(dataset.labels.to_numpy())[train_dataset.indices]
-#     val_labels = torch.tensor(dataset.labels.to_numpy())[val_dataset.indices]
-#     num_classes = train_labels.unique().numel()
-#     return train_dataset, val_dataset, train_dataloader, val_dataloader, num_classes
 
 def get_train_val_dl(dataset, batch_size, training_task):
     if training_task == "classification" :
@@ -60,7 +50,6 @@ def get_train_val_dl(dataset, batch_size, training_task):
     # Create Subset objects for train and validation
     train_dataset = Subset(dataset, train_indices)
     val_dataset = Subset(dataset, val_indices)
-    # Extract labels based on new indices
     # Create DataLoaders
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=8, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, num_workers=8, shuffle=False)  # No need to shuffle validation
@@ -113,17 +102,31 @@ def get_dataset_config(dataset_name):
     return data
 
 def get_metrics(predictions, ground_truth):
+    """
+    Compute overall and class-average accuracy metrics.
+
+    Returns:
+        dict: contains `acc` and `class_avg_acc`.
+    """
     acc = accuracy_score(ground_truth, predictions)
-    # precision = precision_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
-    # recall = recall_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
-    conf_mat = confusion_matrix(ground_truth, predictions,labels=np.unique(ground_truth))
-    try:
-        avg_acc = np.mean(conf_mat.diagonal()/conf_mat.sum(axis=1))
-    except:
-        return 0
-    metrics = {"acc":acc}#, 
-               # # "precision": precision, 
-               # "recall":recall}
+    labels = np.unique(ground_truth)
+    conf_mat = confusion_matrix(ground_truth, predictions, labels=labels)
+
+    per_class_accs = {}
+    row_sums = conf_mat.sum(axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        per_class_acc = np.divide(
+            conf_mat.diagonal(),
+            row_sums,
+            out=np.zeros_like(row_sums, dtype=float),
+            where=row_sums != 0,
+        )
+    class_avg_acc = float(per_class_acc.mean()) if per_class_acc.size else 0.0
+    pdb.set_trace()
+    metrics = {
+        "accuracy": float(acc),
+        "class_avg_accuracy": class_avg_acc,
+    }
     return metrics
 
 class FaissIndexIVFFlat:
