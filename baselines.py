@@ -22,6 +22,8 @@ BASELINES = {
     "tsds",
     "gradmatch",
     "zcore",
+    "gradmatch_acf",
+    "glister",
 }
 
 def check_args(args):
@@ -167,6 +169,14 @@ if __name__ == "__main__":
         required=False,
         help="used for the clutering baselines",
         default=None,
+    )
+
+    parser.add_argument(
+        "--random_seed",
+        type=int,
+        required=False,
+        default=None,
+        help="the random seed",
     )
 
     # parser.add_argument(

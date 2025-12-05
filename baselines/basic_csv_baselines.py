@@ -39,6 +39,8 @@ def get_common_labels(train_labels, test_labels):
     unique_test_labels = set(test_labels.unique())
     common_labels = unique_train_labels & unique_test_labels
     common_indices = train_labels[train_labels.isin(common_labels)].index
+    print(f"unique val labels: {unique_test_labels}")
+    print(f"{common_labels = }")
     return common_indices, common_labels
 
 def match_label(dataset_name: str, task_name: int) -> np.ndarray:
@@ -50,30 +52,38 @@ def match_label(dataset_name: str, task_name: int) -> np.ndarray:
     common_indices, _ = get_common_labels(train_labels, val_labels)
     return np.array(train_uids[common_indices])
 
-def match_dist(dataset_name: str, task_name: int, fraction: float) -> np.ndarray:
+def match_dist(dataset_name: str, task_name: int, fraction: float, random_seed: int = 42) -> np.ndarray:
     train_dataset = get_dataset(dataset_name=dataset_name,split="train")
     val_dataset = get_dataset(dataset_name=dataset_name,split=f"val{task_name}")
     print("got datasets")
     train_labels = train_dataset.labels
     val_labels = val_dataset.labels
     common_label_indices, common_labels=get_common_labels(train_labels, val_labels)
-    desired_training_size = int(len(train_labels)*fraction)
+    desired_training_size = int(len(common_label_indices)*fraction)
+    print("original desired training size:", int(len(train_labels)*fraction))
+    print(f"{desired_training_size = }")
     
     train_labels = train_labels[common_label_indices]
     train_uids = train_dataset.uids[common_label_indices]
     min_instances_per_class=25
+
+    print(f"{train_labels = }")
     
+    rng = np.random.default_rng(seed=random_seed)
+
     train_distribution = train_labels.value_counts(normalize=True)
     val_distribution = val_labels.value_counts(normalize=True)
     sampled_uids_all = []
     for class_label in common_labels:
         class_size = len(train_labels[train_labels == class_label])
+        print(f"{class_label = }, {class_size = }")
         if class_size > 0:
             target_size = max(min_instances_per_class, int(desired_training_size * val_distribution[class_label]))
             sampling_strategy = target_size / class_size
-            sampled_indices = np.random.choice(train_labels[train_labels == class_label].index, size=int(sampling_strategy * class_size), replace=True)
+            sampled_indices = rng.choice(train_labels[train_labels == class_label].index, size=int(sampling_strategy * class_size), replace=True)
             sampled_uids = train_uids.loc[sampled_indices]
             sampled_uids_all.append(sampled_uids)
+            print(f"selected {len(sampled_uids)} for cless {class_label}")
     final_train_uids = np.array(pd.concat(sampled_uids_all, ignore_index=True))
     return final_train_uids
 
@@ -97,11 +107,19 @@ def apply_csv_filter(args: Any) -> None:
             task_name = args.task_name
         )
     elif args.name == "match_dist":
-        uids = match_dist(
-            dataset_name = args.dataset_name, 
-            task_name = args.task_name,
-            fraction = args.fraction
-        )
+        if not args.random_seed:
+            uids = match_dist(
+                dataset_name = args.dataset_name, 
+                task_name = args.task_name,
+                fraction = args.fraction
+            )
+        else:
+            uids = match_dist(
+                dataset_name = args.dataset_name, 
+                task_name = args.task_name,
+                fraction = args.fraction,
+                random_seed = args.random_seed
+            )
     else:
         raise ValueError(f"Unknown args.name argument: {args.name}")
 

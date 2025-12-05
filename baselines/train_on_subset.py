@@ -125,6 +125,10 @@ def main():
         dataset.data.dropna(subset=['label'],inplace=True)
         dataset.data = dataset.data.reset_index()
         dataset.labels=dataset.data['label']
+
+        print(f"VALUE_TO_INDEX: {value_to_index}")
+        
+
     train_dataset, val_dataset, train_dataloader, val_dataloader, num_classes = get_train_val_dl(dataset=dataset, 
                                                                                                  batch_size=int(args.batch_size),
                                                                                                  training_task=args.training_task)

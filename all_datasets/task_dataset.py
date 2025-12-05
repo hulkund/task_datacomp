@@ -18,14 +18,22 @@ with open('configs/datasets.yaml', 'r') as file:
     data = yaml.safe_load(file)
 
 class TaskDataset(Dataset):
-    def __init__(self, dataset_name, split, subset_path):
-        self.csv_path = data[dataset_name]['csv_root_path']+data[dataset_name]['FILEPATHS'][split]
-        print(self.csv_path)
+    def __init__(self, dataset_name, split, subset_path, dataframe=None):
+        if dataframe is not None:
+            self.data = dataframe
+        else:
+            self.csv_path = data[dataset_name]['csv_root_path']+data[dataset_name]['FILEPATHS'][split]
+            print(self.csv_path)
+            self.data = pd.read_csv(self.csv_path)
         self.img_root_path = data[dataset_name]['img_root_path']
-        self.data = pd.read_csv(self.csv_path)
         if subset_path:
             uids_to_keep=np.load(subset_path,allow_pickle=True)
+            print(f"{len(uids_to_keep) = }")
+            print(f"{sorted(uids_to_keep)[0:10] = }")
+            missing_uids = set(uids_to_keep) - set(self.data['uid'])
+            print("Missing UIDs:", missing_uids)
             self.data = self.data[self.data['uid'].isin(uids_to_keep)]
+            print(f"{len(self.data['label']) = }")
         self.total_samples = len(self.data)
         self.uids=self.data['uid']
         

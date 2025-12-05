@@ -12,12 +12,9 @@ RUN_CSV_BASELNE = ROOT_DIR / "run_csv_baseline.sh"
 RUN_NEW_TRAIN = ROOT_DIR / "baselines/run_new_train.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
-baselines_list = ["gradmatch"]
-# baselines_list = ["no_filter", "random_filter", "match_dist"]
-# baselines_list = ["zcore"]
-# baselines_list = ["no_filter", "random_filter", "match_dist", "gradmatch", "zcore"]
-# baselines_list = ["clip_score", "random_filter"]
-# baselines_list = ["no_filter", "random_filter", "match_dist", "clip_score"]
+# baselines_list = ["no_filter"]
+baselines_list = ["no_filter", "random_filter", "clip_score", "match_dist", "gradmatch_acf", "glister"]
+# baselines_list = ["gradmatch", "gradmatch_acf"] # adaptive class fraction
 
 sweep_dict = create_sweep_dict()
 
@@ -27,10 +24,14 @@ sweep_dict = create_sweep_dict()
 # dataset_list = [('iWildCam', 'val1', 'test1')] # (dataset, val_split, test_split)
 
 dataset_list = [
-    ('iWildCam', 'val1', 'test1'),
+    # ('iWildCam', 'val1', 'test1'),
     # ('iWildCam', 'val2', 'test2'),
     # ('iWildCam', 'val3', 'test3'),
-    # ('iWildCam', 'val4', 'test4')
+    # ('iWildCam', 'val4', 'test4'),
+    ('AutoArborist', 'val1', 'test1'),
+    # ('AutoArborist', 'val2', 'test2'),
+    # ('AutoArborist', 'val3', 'test3'),
+    # ('AutoArborist', 'val4', 'test4')
 ]
 
 supervised = "True"
@@ -53,46 +54,33 @@ for baseline in baselines_list:
         print("Trying param configuration:", param_setting)
 
         for dataset, val_split, test_split in dataset_list:
-            for finetune_type in finetune_list:
-                if finetune_type=="linear_probe": lr_list = [0]
-                else: lr_list = lr_list
-                for lr in lr_list:
-                    for batch_size in batch_size_list:
-                        embedding_path      = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
-                        
-                        # hard-coded case
-                        if baseline == "zcore":
-                            embedding_path = "/data/vision/beery/scratch/neha/task-datacomp/experiments_again/iWildCam/no_filter_1/embeddings/all_subset_resnet50.npy"
+            embedding_path      = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
+            
+            # hard-coded case
+            if baseline == "zcore":
+                embedding_path = "/data/vision/beery/scratch/neha/task-datacomp/experiments_again/iWildCam/no_filter_1/embeddings/all_subset_resnet50.npy"
 
-                        centroids_path      = f"all_datasets/{dataset}/centroids/train_centroids.pt"
-                        val_embedding_path  = f"all_datasets/{dataset}/embeddings/{val_split}_embeddings.npy"
-                        save_folder = create_save_folder(dataset, baseline, param_setting)
+            centroids_path      = f"all_datasets/{dataset}/centroids/train_centroids.pt"
+            val_embedding_path  = f"all_datasets/{dataset}/embeddings/{val_split}_embeddings.npy"
+            save_folder = create_save_folder(dataset, baseline, param_setting)
 
-                        # Create subset
-                        subset_path = save_folder + f"{test_split}_subset.npy"
-                        if not os.path.exists(subset_path):
-                            assert "fraction" in param_setting
-                            fraction = str(param_setting["fraction"])
-                            
-                            if  baseline in ["match_dist", "match_label"]:
-                                task_num = test_split[4]
-                                command = ["sbatch", str(RUN_CSV_BASELNE), baseline, dataset, task_num, fraction, subset_path]
-                            else:
-                                command = ["sbatch", str(RUN_BASELINE), baseline, embedding_path, subset_path, fraction, val_embedding_path, centroids_path, supervised]
-                                for k, v in param_setting.items():
-                                    if k == "fraction": continue
-                                    command.append(f"--{k}")
-                                    command.append(str(v))
-                            
-                            print("Running command to create subset:", " ".join(command))
-                            subprocess.call(command)
-
-                        # # Run new training job to evaluate the param settings
-                        # metrics_path    = save_folder + f"{test_split}_{finetune_type}_lr={lr}_metrics.json"
-                        # checkpoint_path = save_folder + f"{test_split}_finetune={finetune_type}_lr={lr}_batchsize={batch_size}"
-                        # training_task = datasets_config[dataset]["training_task"]
-                        # if not os.path.exists(metrics_path) and os.path.exists(subset_path):
-                        #     command = ["sbatch", str(RUN_NEW_TRAIN), dataset, subset_path, save_folder, "configs/datasets.yaml", str(lr), finetune_type, str(batch_size), checkpoint_path, training_task]
-                        #     print("Running command to run new train:", " ".join(command))
-                        #     subprocess.call(command)
+            # Create subset
+            subset_path = save_folder + f"{test_split}_subset.npy"
+            if not os.path.exists(subset_path):
+                assert "fraction" in param_setting
+                fraction = str(param_setting["fraction"])
+                random_seed = str(param_setting["random_seed"])
+                
+                if  baseline in ["match_dist", "match_label"]:
+                    task_num = test_split[4]
+                    command = ["sbatch", str(RUN_CSV_BASELNE), baseline, dataset, task_num, fraction, subset_path, random_seed]
+                else:
+                    command = ["sbatch", str(RUN_BASELINE), baseline, embedding_path, subset_path, fraction, val_embedding_path, centroids_path, supervised, random_seed]
+                    for k, v in param_setting.items():
+                        if k == "fraction": continue
+                        command.append(f"--{k}")
+                        command.append(str(v))
+                
+                print("Running command to create subset:", " ".join(command))
+                subprocess.call(command)
 

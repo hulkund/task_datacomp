@@ -30,6 +30,11 @@ from torch.utils.data import Subset
 
 from pathlib import Path
 
+import yaml
+
+with open("configs/datasets.yaml", "r") as f:
+    DATASETS = yaml.safe_load(f)
+
 import zcore.core.coreset as cs
 
 def get_fasttext_language(text: str, lang_detect_model: Any) -> str:
@@ -261,6 +266,7 @@ def load_embedding(embedding_path: str, columns, train_csv_path = None, val_csv_
         embed_df = embed_df[embed_df["uid"].isin(allowed_uids)]
         embed_df = embed_df.reset_index(drop=True)
   
+    print("len(embed_df):", len(embed_df))
     return embed_df
 
 def get_threshold(
@@ -383,6 +389,7 @@ def load_uids(embedding_path: str, train_csv_path = None, val_csv_path = None) -
 def load_uids_with_random_filter(
     embedding_path: str,
     subset_percent: float,
+    random_seed: int,
     train_csv_path = None,
     val_csv_path = None
 ) -> np.ndarray:
@@ -392,7 +399,7 @@ def load_uids_with_random_filter(
         train_csv_path=train_csv_path,
         val_csv_path=val_csv_path
     )
-    uids_selected=embed_df.sample(frac=subset_percent,random_state=42)
+    uids_selected=embed_df.sample(frac=subset_percent,random_state=random_seed)
     return np.array(uids_selected).squeeze(axis=1)
 
 def load_uids_with_tsds(
@@ -494,6 +501,24 @@ def load_uids_with_tsds(
     selected_uids = np.array([uid_array[i] for i in sample_indices])
     return selected_uids
 
+def gradmatch_acf_mapping(train_df, val_df, fraction):
+    acf_mapping = {}
+    print(f"{len(train_df) = }")
+    print(f"{len(val_df) = }")
+
+    val_classes = val_df["label"].unique()
+    for c in val_classes:
+        val_class_frac = (val_df["label"] == c).mean()
+        train_class_frac = (train_df["label"] == c).mean()
+        print(f"class={c}: len(train_class)={(train_df['label'] == c).sum()}, len(val_class)={(val_df['label'] == c).sum()}")
+        if train_class_frac == 0:
+            selection_class_frac = 0
+        else:
+            selection_class_frac = min(1, fraction * val_class_frac / train_class_frac)
+        acf_mapping[c] = selection_class_frac
+    print("acf_mapping:", acf_mapping)
+    return acf_mapping
+
 def load_uids_with_gradmatch(
     fraction=0.25, # sweep over [0.25, 0.5, 0.75, 0.9]
     random_seed=42, 
@@ -530,9 +555,34 @@ def load_uids_with_gradmatch(
     dataset_name = dataset_dir
     val_split = filename.split('_')[0]
     print(f"dataset={dataset_name}, val_split={val_split}")
+
     train_dataset = get_dataset(dataset_name, split='train')
     val_dataset = get_dataset(dataset_name, split=val_split)
+
+    print(f"Before: len(train_dataset.data)={len(train_dataset.data)}, train_dataset.classes={train_dataset.classes}")
+    print(f"Before: len(val_dataset.data)={len(val_dataset.data)}, val_dataset.classes={val_dataset.classes}")
     
+    val_labels = set(np.unique(val_dataset.labels))
+    print(f"{val_labels = }")
+
+    train_indices = train_dataset.labels[train_dataset.labels.isin(val_labels)].index
+
+    label_map = {old: new for new, old in enumerate(sorted(val_labels))}
+    print(f"{label_map = }")
+
+    filtered_train_df = train_dataset.data.iloc[train_indices].reset_index(drop=True)
+    filtered_train_df["label"] = filtered_train_df["label"].map(label_map)
+    
+    filtered_val_df = val_dataset.data
+    filtered_val_df["label"] = filtered_val_df["label"].map(label_map)
+
+    # making new train and val datasets
+    train_dataset = get_dataset(dataset_name, split='train', dataframe=filtered_train_df)
+    val_dataset = get_dataset(dataset_name, split=val_split, dataframe=filtered_val_df)
+
+    print(f"After: len(train_dataset.data)={len(train_dataset.data)}, train_dataset.classes={train_dataset.classes}")
+    print(f"After: len(val_dataset.data)={len(val_dataset.data)}, val_dataset.classes={val_dataset.classes}")
+
     # look at what type the dataset label target is
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
@@ -543,6 +593,10 @@ def load_uids_with_gradmatch(
     args_dict['num_classes'] = train_dataset.data['label'].nunique()
     args_dict['channel'] = 3
     args_dict['im_size'] = [224,224]
+
+    acf_mapping = None
+    if args.name == "gradmatch_acf":
+        acf_mapping = gradmatch_acf_mapping(train_dataset.data, val_dataset.data, args.fraction)
 
     # Prepare model and args (adapt to your setup)
     # Example: args should have .num_classes, .device, .selection_batch, .print_freq, .workers, etc.
@@ -569,7 +623,8 @@ def load_uids_with_gradmatch(
         balance=balance,
         dst_val=val_dataset,
         lam=lam,
-        args=args
+        args=args,
+        acf_mapping=acf_mapping
     )
     print(gradmatch)
     # Run selection
@@ -634,6 +689,125 @@ def load_uids_with_zcore(
     return selected_uids
 
 
+def load_uids_with_glister(
+    fraction=0.25,
+    random_seed=42, 
+    epochs=50,
+    balance=True, 
+    eta=0.1,
+    args=None
+) -> np.ndarray:
+    # TODO: put a bunch of the args_dict into config (or hard-code them here)
+    args_dict = {
+        'print_freq': 100, 
+        'device': 'cuda', 
+        'workers': 4, 
+        'model':'ResNet18', # from the paper
+        'selection_optimizer':'SGD', # from the paper
+        'selection_momentum':0.9, # from the paper
+        'selection_weight_decay':1e-4, # from the paper
+        'selection_nesterov':True,
+        'selection_test_interval':10,
+        'selection_test_fraction':1.0,
+        'specific_model':None,
+        'torchvision_pretrain':True,
+        'if_dst_pretrain':False,
+        'dst_pretrain_dict':{},
+        'n_pretrain_size':1000,
+        'n_pretrain':1000,
+        'gpu':[0]
+    }
+
+    # Load datasets using args.dataset_name and args.val_embedding_path
+    p = Path(args.val_embedding_path) # something like 'all_datasets/iWildCam/embeddings/val1_embeddings.npy'
+    filename = p.name
+    dataset_dir = p.parent.parent.name
+    dataset_name = dataset_dir
+    val_split = filename.split('_')[0]
+    print(f"dataset={dataset_name}, val_split={val_split}")
+
+    train_dataset = get_dataset(dataset_name, split='train')
+    val_dataset = get_dataset(dataset_name, split=val_split)
+
+    print(f"Before: len(train_dataset.data)={len(train_dataset.data)}, train_dataset.classes={train_dataset.classes}")
+    print(f"Before: len(val_dataset.data)={len(val_dataset.data)}, val_dataset.classes={val_dataset.classes}")
+    
+    val_labels = set(np.unique(val_dataset.labels))
+    print(f"{val_labels = }")
+
+    train_indices = train_dataset.labels[train_dataset.labels.isin(val_labels)].index
+
+    label_map = {old: new for new, old in enumerate(sorted(val_labels))}
+    print(f"{label_map = }")
+
+    filtered_train_df = train_dataset.data.iloc[train_indices].reset_index(drop=True)
+    filtered_train_df["label"] = filtered_train_df["label"].map(label_map)
+    
+    filtered_val_df = val_dataset.data
+    filtered_val_df["label"] = filtered_val_df["label"].map(label_map)
+
+    # making new train and val datasets
+    train_dataset = get_dataset(dataset_name, split='train', dataframe=filtered_train_df)
+    val_dataset = get_dataset(dataset_name, split=val_split, dataframe=filtered_val_df)
+
+    print(f"After: len(train_dataset.data)={len(train_dataset.data)}, train_dataset.classes={train_dataset.classes}")
+    print(f"After: len(val_dataset.data)={len(val_dataset.data)}, val_dataset.classes={val_dataset.classes}")
+
+    # look at what type the dataset label target is
+    print(f"Train dataset size: {len(train_dataset)}")
+    print(f"Validation dataset size: {len(val_dataset)}")
+    print(f"Example data point: {type(train_dataset[0][0])}")
+    print(f"Example label type: {type(train_dataset[0][1])}")
+
+    # TODO: determine these values from train_dataset
+    args_dict['num_classes'] = train_dataset.data['label'].nunique()
+    args_dict['channel'] = 3
+    args_dict['im_size'] = [224,224]
+
+    # Prepare model and args (adapt to your setup)
+    # Example: args should have .num_classes, .device, .selection_batch, .print_freq, .workers, etc.
+
+    user_args = vars(args)
+
+    # TODO: can probably cross-reference with config file
+    if 'selection_lr' in user_args:
+        user_args['selection_lr'] = float(user_args['selection_lr'])
+    if 'selection_batch' in user_args:
+        user_args['selection_batch'] = int(user_args['selection_batch'])
+
+    merged_dict = {**user_args, **args_dict}
+    args = argparse.Namespace(**merged_dict)
+
+    print("Initializing Glister with args:", vars(args))
+
+    # Initialize Glister
+    glister = GradMatch(
+        dst_train=train_dataset,
+        fraction=fraction,
+        random_seed=random_seed,
+        epochs=epochs,
+        balance=balance,
+        dst_val=val_dataset,
+        eta=eta,
+        args=args
+    )
+    print(glister)
+    # Run selection
+    selection_result = glister.select()
+    selected_indices = selection_result["indices"]
+
+    # Filter your dataset using selected_indices
+    filtered_dataset = torch.utils.data.Subset(train_dataset, selected_indices)
+    print(f"Selected {len(selected_indices)} samples using GradMatch.")
+
+    # Optionally, save indices or filtered dataset
+    # np.save("gradmatch_selected_indices.npy", selected_indices)
+
+    selected_uids = np.array([train_dataset.data.iloc[i]["uid"] for i in selected_indices])
+    # return filtered_dataset, selected_indices, selected_weights, selected_uids
+    return selected_uids
+
+
 def apply_filter(args: Any) -> None:
     """function to route the args to the proper baseline function
 
@@ -651,17 +825,27 @@ def apply_filter(args: Any) -> None:
 
     train_csv_path = None
     val_csv_path = None
-    if args.supervised == "True":
+    if args.supervised == "True" or args.name == "gradmatch_acf":
         p = Path(args.val_embedding_path) # something like 'all_datasets/iWildCam/embeddings/val1_embeddings.npy'
 
         dataset_dir = p.parent.parent.name
         dataset_name = dataset_dir
-        train_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/new_splits/train.csv"
+        cfg = DATASETS[dataset_name]
+
+        csv_root = cfg["csv_root_path"]
+        filepaths = cfg["FILEPATHS"]
+
+        train_csv_path = str(Path(csv_root) / filepaths["train"])
+        
+        # if dataset_name == "iWildCam":
+        #     train_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/new_splits/train.csv"
+        # elif dataset_name == "AutoArborist":
+        #     train_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/splits/train.csv"
 
         filename = p.name
         val_split = filename.split('_')[0]
-        val_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/new_splits/{val_split}_id.csv"
-
+        # val_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/redone_splits/{val_split}_id.csv"
+        val_csv_path = str(Path(csv_root) / filepaths[val_split])
 
     if args.name == "no_filter":
         uids = load_uids(
@@ -678,6 +862,7 @@ def apply_filter(args: Any) -> None:
         uids = load_uids_with_random_filter(
             embedding_path=args.embedding_path,
             subset_percent=args.fraction,
+            random_seed=args.random_seed,
             train_csv_path=train_csv_path,
             val_csv_path=val_csv_path,
         )
@@ -738,10 +923,11 @@ def apply_filter(args: Any) -> None:
             val_embedding_path=args.val_embedding_path,
             pool_embedding_path=args.embedding_path
         )
-    elif args.name == "gradmatch":
+    elif args.name in ["gradmatch", "gradmatch_acf"]:
         args.model = 'ResNet18'
         uids = load_uids_with_gradmatch(
             fraction=args.fraction, 
+            random_seed=args.random_seed,
             balance=True, 
             lam=1.0,
             args=args,
@@ -749,6 +935,14 @@ def apply_filter(args: Any) -> None:
     elif args.name == "zcore":
         uids = load_uids_with_zcore(
             fraction=args.fraction,
+            args=args,
+        )
+    elif args.name == "glister":
+        args.model = 'ResNet18'
+        uids = load_uids_with_glister(
+            fraction=args.fraction, 
+            random_seed=args.random_seed,
+            balance=True, 
             args=args,
         )
     else:

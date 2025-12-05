@@ -1,19 +1,4 @@
 #!/bin/bash
-#SBATCH --partition=vision-shared-a100,vision-shared-h100
-#SBATCH --qos=lab-free
-#SBATCH --account=vision-beery
-#SBATCH --output=slurm/slurm-%J.out
-#SBATCH --gres=gpu:1
-#SBATCH -c 8
-#SBATCH --mem=100G
-#SBATCH --time=1-00:00:00
-#SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
-#SBATCH --requeue
-
-source /data/vision/beery/scratch/evelyn/.bashrc
-conda init
-conda activate datacomp
- 
 
 # Assign arguments to variables
 DATASET_NAME="$1"

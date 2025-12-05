@@ -7,14 +7,18 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 
-RUN_BASELINE = ROOT_DIR / "run_baseline.sh"
 RUN_NEW_TRAIN = ROOT_DIR / "baselines/run_new_train.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
 # baselines_list = ["gradmatch"]
 # baselines_list = ["no_filter", "random_filter", "match_dist"]
 # baselines_list = ["zcore"]
-baselines_list = ["no_filter", "random_filter", "match_dist", "gradmatch", "zcore"]
+# baselines_list = ["no_filter", "random_filter", "match_dist", "gradmatch", "zcore"]
+# baselines_list = ["no_filter"]
+# baselines_list = ["gradmatch", "no_filter", "random_filter", "match_dist", "clip_score", "gradmatch_acf"]
+# baselines_list = ["match_dist", "gradmatch_acf"]
+baselines_list = ["match_dist", "gradmatch_acf", "glister"]
+# baselines_list = ["gradmatch", "gradmatch_acf"] # adaptive class fraction
 
 sweep_dict = create_sweep_dict()
 
@@ -25,13 +29,14 @@ sweep_dict = create_sweep_dict()
 
 dataset_list = [
     ('iWildCam', 'val1', 'test1'),
-    ('iWildCam', 'val2', 'test2'),
-    ('iWildCam', 'val3', 'test3'),
-    ('iWildCam', 'val4', 'test4')
+    # ('iWildCam', 'val2', 'test2'),
+    # ('iWildCam', 'val3', 'test3'),
+    # ('iWildCam', 'val4', 'test4')
 ]
 
 
 finetune_list = ["full_finetune_resnet50"]
+# finetune_list = ["lora_finetune_vit"]
 lr_list = [0.001]
 batch_size_list = [128]
 

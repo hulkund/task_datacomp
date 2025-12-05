@@ -38,7 +38,7 @@ def get_train_val_dl(dataset, batch_size, training_task):
     if training_task == "classification" :
         # Convert labels to a tensor (assuming dataset.labels is a pandas Series)
         all_labels = torch.tensor(dataset.labels.to_numpy())  
-        print(len(all_labels), len(dataset))
+        print(f"{len(all_labels) = }, {len(dataset)}")
         # Generate stratified train/val split indices
         train_indices, val_indices = train_test_split(
             range(len(dataset)), 
@@ -84,13 +84,13 @@ def load_embedding(embedding_path:str, columns):
         embed_df[col] = [e[col] for e in embed]
     return embed_df
 
-def get_dataset(dataset_name,split,subset_path=None,transform=None):
+def get_dataset(dataset_name,split,subset_path=None,transform=None,dataframe=None):
     if dataset_name == "COOS":
         dataset = COOSDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "FMoW":
         dataset = FMoWDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "iWildCam":
-        dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform)
+        dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform, dataframe=dataframe)
     elif dataset_name == "iWildCamCropped":
         dataset = iWildCamCroppedDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "GeoDE":
@@ -113,17 +113,42 @@ def get_dataset_config(dataset_name):
     return data
 
 def get_metrics(predictions, ground_truth):
+    """
+    Compute overall and class-average accuracy metrics.
+
+    Returns:
+        dict: contains `acc`, `accuracy`, and `class_avg_acc`.
+    """
     acc = accuracy_score(ground_truth, predictions)
-    # precision = precision_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
-    # recall = recall_score(ground_truth, predictions, average='macro',labels=np.unique(ground_truth))
-    conf_mat = confusion_matrix(ground_truth, predictions,labels=np.unique(ground_truth))
-    try:
-        avg_acc = np.mean(conf_mat.diagonal()/conf_mat.sum(axis=1))
-    except:
-        return 0
-    metrics = {"acc":acc}#, 
-               # # "precision": precision, 
-               # "recall":recall}
+    labels = np.unique(ground_truth)
+    conf_mat = confusion_matrix(ground_truth, predictions, labels=labels)
+
+    print(f"{ground_truth = }")
+    print(f"{predictions = }")
+    print(f"{labels = }")
+
+    row_sums = conf_mat.sum(axis=1)
+
+    print(f"{row_sums = }")
+    print(f"{conf_mat = }")
+    with np.errstate(divide="ignore", invalid="ignore"):
+        per_class_acc = np.divide(
+            conf_mat.diagonal(),
+            row_sums,
+            out=np.zeros_like(row_sums, dtype=float),
+            where=row_sums != 0,
+        )
+    class_avg_acc = float(per_class_acc.mean()) if per_class_acc.size else 0.0
+    print(f"{per_class_acc = }")
+    per_class_acc_dict = {i : per_class_acc[i] for i in range(len(per_class_acc))}
+
+    print(f"{per_class_acc_dict = }")
+    metrics = {
+        "accuracy": float(acc),
+        "class_avg_accuracy": class_avg_acc,
+    }
+
+    metrics |= per_class_acc_dict
     return metrics
 
 class FaissIndexIVFFlat:

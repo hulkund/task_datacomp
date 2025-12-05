@@ -11,13 +11,17 @@ def run_gradmatch_filter(train_split='train',
                         val_split='val', 
                         fraction=0.5, 
                         random_seed=42, 
-                        epochs=200, 
+                        epochs=1, 
                         balance=True, 
                         lam=1.0,
                         model=None,
                         args=None):
     # Load datasets
     train_dataset = get_dataset('iWildCam', split=train_split)
+    # train_dataset_classes = train_dataset.classes
+    # train_dataset = torch.utils.data.Subset(train_dataset, range(1000))
+    # train_dataset = train_dataset_classes
+    # train_dataset = torch.utils.data.DataLoader(train_dataset)
     val_dataset = get_dataset('iWildCam', split=val_split)
     # look at what type the dataset label target is
     print(f"Train dataset size: {len(train_dataset)}")
@@ -85,7 +89,7 @@ args_dict = {'print_freq': 100,
              'gpu':[0]}
 args = argparse.Namespace(**args_dict)
 filtered_dataset, selected_indices, selected_weights, selected_uids = run_gradmatch_filter(train_split='train', 
-                                                                            val_split='test1', 
+                                                                            val_split='val1', 
                                                                             fraction=0.1, 
                                                                             random_seed=42, 
                                                                             epochs=1, 

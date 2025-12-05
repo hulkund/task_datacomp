@@ -306,3 +306,158 @@ def plot_confusion_matrix_from_pt(
         print(f"\nConfusion matrix saved to {png_save_path}")
     
     plt.show()
+
+
+from collections import defaultdict
+from matplotlib_venn import venn2, venn3
+
+
+class UIDSelectorComparator:
+    def __init__(self, uid_files: dict, label_map_file=None):
+        """
+        uid_files: dict(name -> path_to_npy)
+            e.g. {
+                "gradmatch": "path/.../gradmatch.npy",
+                "tsds": "path/.../tsds.npy"
+            }
+
+        label_map_file: Optional path to a .npy or .pkl mapping
+            UID -> label (integer).
+        """
+        self.uid_files = uid_files
+        self.methods = list(uid_files.keys())
+        self.uid_sets = {k: set(np.load(v, allow_pickle=True)) for k, v in uid_files.items()}
+
+        if label_map_file is not None:
+            self.uid_to_label = np.load(label_map_file, allow_pickle=True).item()
+        else:
+            self.uid_to_label = None
+
+    # ---------------------------------------------------------
+    # Core metrics
+    # ---------------------------------------------------------
+    def iou(self, method1, method2):
+        A, B = self.uid_sets[method1], self.uid_sets[method2]
+        return len(A & B) / len(A | B)
+
+    def overlap_counts(self, method1, method2):
+        A, B = self.uid_sets[method1], self.uid_sets[method2]
+        return {
+            "intersection": len(A & B),
+            "only_method1": len(A - B),
+            "only_method2": len(B - A),
+            "union": len(A | B)
+        }
+
+    # ---------------------------------------------------------
+    # Per-label metrics
+    # ---------------------------------------------------------
+    def per_label_iou(self, method1, method2):
+        if self.uid_to_label is None:
+            raise ValueError("Need a UID→label mapping to compute per-label IOU")
+
+        # bucket uids by label
+        label_buckets = defaultdict(lambda: defaultdict(set))
+
+        for m in [method1, method2]:
+            for uid in self.uid_sets[m]:
+                lbl = self.uid_to_label[uid]
+                label_buckets[lbl][m].add(uid)
+
+        results = {}
+        for lbl, d in label_buckets.items():
+            A = d.get(method1, set())
+            B = d.get(method2, set())
+            if len(A) + len(B) == 0:
+                results[lbl] = 0.0
+            else:
+                results[lbl] = len(A & B) / len(A | B)
+
+        return results
+
+    # ---------------------------------------------------------
+    # Visualization
+    # ---------------------------------------------------------
+    def venn(self, method1, method2):
+        A = self.uid_sets[method1]
+        B = self.uid_sets[method2]
+
+        plt.figure(figsize=(6, 6))
+        venn2([A, B], set_labels=(method1, method2))
+        plt.title(f"UID Overlap: {method1} vs {method2}")
+        plt.show()
+
+    def venn_three(self, m1, m2, m3):
+        A = self.uid_sets[m1]
+        B = self.uid_sets[m2]
+        C = self.uid_sets[m3]
+
+        plt.figure(figsize=(7, 7))
+        venn3([A, B, C], set_labels=(m1, m2, m3))
+        plt.title(f"UID Overlap Across Methods")
+        plt.show()
+
+    def barplot_per_label_iou(self, method1, method2):
+        per_label = self.per_label_iou(method1, method2)
+        labels = sorted(per_label.keys())
+        values = [per_label[l] for l in labels]
+
+        plt.figure(figsize=(12, 5))
+        plt.bar(labels, values)
+        plt.xlabel("Label")
+        plt.ylabel("IOU")
+        plt.title(f"Per-Label IOU: {method1} vs {method2}")
+        plt.show()
+
+    # ---------------------------------------------------------
+    # Qualitative visualization
+    # ---------------------------------------------------------
+    def visualize_examples(self, method1, method2, image_loader, k=5):
+        """
+        image_loader: function(uid) -> image array (H,W,3)
+        k: number of samples to show per category
+        """
+        A = self.uid_sets[method1]
+        B = self.uid_sets[method2]
+
+        only1 = list(A - B)[:k]
+        only2 = list(B - A)[:k]
+        both = list(A & B)[:k]
+
+        groups = [("Only " + method1, only1),
+                  ("Both", both),
+                  ("Only " + method2, only2)]
+
+        for title, uids in groups:
+            if not uids:
+                continue
+
+            plt.figure(figsize=(15, 3))
+            for i, uid in enumerate(uids):
+                img = image_loader(uid)
+                plt.subplot(1, k, i + 1)
+                plt.imshow(img)
+                plt.title(uid)
+                plt.axis("off")
+            plt.suptitle(title)
+            plt.show()
+
+    def summary_stats(self, method1, method2):
+        A = self.uid_sets[method1]
+        B = self.uid_sets[method2]
+
+        inter = len(A & B)
+        union = len(A | B)
+        only1 = len(A - B)
+        only2 = len(B - A)
+
+        print(f"=== Summary: {method1} vs {method2} ===")
+        print(f"{method1} count: {len(A)}")
+        print(f"{method2} count: {len(B)}")
+        print(f"Intersection: {inter}")
+        print(f"Only {method1}: {only1}")
+        print(f"Only {method2}: {only2}")
+        print(f"Union: {union}")
+        print(f"IOU: {inter / union:.4f}")
+        print(f"Overlap (intersection / min(n1,n2)): {inter / min(len(A), len(B)):.4f}")
+        print("====================================")

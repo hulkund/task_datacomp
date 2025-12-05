@@ -4,6 +4,7 @@ from transformers import PreTrainedModel
 from torchvision.models import resnet50, ResNet50_Weights, resnet101, ResNet101_Weights
 import clip
 import numpy as np
+import timm # for running vit
 
 class ViTConfig(PretrainedConfig):
     def __init__(self, **kwargs):

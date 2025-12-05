@@ -13,8 +13,8 @@ from all_datasets.task_dataset import TaskDataset
 
 
 class iWildCamDataset(TaskDataset):
-    def __init__(self, split, subset_path=None, transform=None):
-        super().__init__('iWildCam', split, subset_path)
+    def __init__(self, split, subset_path=None, transform=None, dataframe=None):
+        super().__init__('iWildCam', split, subset_path, dataframe)
         if transform:
             self.transform = transform
         else:

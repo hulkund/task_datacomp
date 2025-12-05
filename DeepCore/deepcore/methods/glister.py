@@ -43,7 +43,9 @@ class Glister(EarlyTrain):
             self.init_emb = []
             self.init_y = []
 
-        for i, (input, targets) in enumerate(batch_loader):
+        for i, (image, text, label, uid) in enumerate(batch_loader):
+            input = image
+            targets = label.long()
             self.model_optimizer.zero_grad()
             outputs = self.model(input.to(self.args.device))
             loss = self.criterion(outputs.requires_grad_(True), targets.to(self.args.device)).sum()
@@ -129,6 +131,8 @@ class Glister(EarlyTrain):
                                                              **kwargs: torch.matmul(self.train_grads[idx_gain],
                                                              self.val_grads.view(-1, 1)).detach().cpu().numpy().
                                                              flatten(), upadate_state=self.update_val_gradients)
+                print(f"{c = }, {len(c_selection_result) = }")
+
                 selection_result = np.append(selection_result, c_selection_result)
 
         else:
