@@ -16,9 +16,7 @@ class GradMatch(EarlyTrain):
         super().__init__(dst_train, args, fraction, random_seed, epochs, specific_model, **kwargs)
         self.balance = balance
         self.dst_val = dst_val
-        # print("Initializing gradmatch with len(dst_train) images:", len(dst_train))
         self.acf_mapping = acf_mapping # {class : budget_fraction}
-        # print(f"{lam = }")
         self.lam = lam
 
     def num_classes_mismatch(self):
@@ -29,7 +27,7 @@ class GradMatch(EarlyTrain):
             print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f' % (
                 epoch, self.epochs, batch_idx + 1, (self.n_pretrain_size // batch_size) + 1, loss.item()))
 
-    def orthogonal_matching_pursuit(self, A, b, budget: int, lam: float = 1., save_matrices_path=None):
+    def orthogonal_matching_pursuit(self, A, b, budget: int, lam: float = 1.):
         '''approximately solves min_x |x|_0 s.t. Ax=b using Orthogonal Matching Pursuit
         Acknowlegement to:
         https://github.com/krishnatejakk/GradMatch/blob/main/GradMatch/selectionstrategies/helpers/omp_solvers.py
@@ -41,10 +39,8 @@ class GradMatch(EarlyTrain):
         Returns:
            vector of length n
         '''
-        print(f"[{datetime.now()}] In OMP")
         with torch.no_grad():
             d, n = A.shape
-            # print(f"{d = }, {n = }")
 
             # Added to help with numerical instability
             A = A.to(torch.float64)
@@ -85,64 +81,12 @@ class GradMatch(EarlyTrain):
             if budget > 1:
                 # x_i = nnls(temp.cpu().numpy(), torch.matmul(A_i, b).view(-1).cpu().numpy())[0] # Deprecated
                 # In theory, the lsq_linear solver with these bounds and method reaches the same result as nnls
-                self.measure(temp)
-
-                print(f"[{datetime.now()}] Starting lsq_linear")
-
-
                 target = torch.matmul(A_i, b).view(-1)
-                if save_matrices_path is not None:
-                    self.save_matrices(save_matrices_path, temp, target)
-
-                # x_i = lsq_linear(temp.cpu().numpy(), target.cpu().numpy(), bounds=(0, np.inf), method='bvls')
-
-                # def tikhonov_preconditioning(temp, target):
-                #     print("with Tikhonov preconditioning")
-                #     G = temp.cpu().numpy()
-
-                #     lambda_reg = 1e-5  # Small regularization constant
-                #     G_aug = np.vstack([G, lambda_reg * np.eye(G.shape[1])])
-                #     target_aug = np.concatenate([target, np.zeros(G.shape[1])])
-
-                #     res = lsq_linear(G_aug, target_aug, bounds=(0, np.inf), method='bvls')
-                #     return res
-                
-                # x_i = tikhonov_preconditioning(temp, target)
-
-                print(f"[{datetime.now()}] Done with lsq_linear")
-                
-                # x[indices] = x_i.x
+                x_i = lsq_linear(temp.cpu().numpy(), target.cpu().numpy(), bounds=(0, np.inf), method='bvls')                
+                x[indices] = x_i.x
             elif budget == 1:
                 x[indices[0]] = 1.
         return x
-    
-    def save_matrices(self, path, temp, target):
-        print(f"[{datetime.now()}] Saving matrices to {path}")
-        G = temp.cpu().numpy()
-        b = target.cpu().numpy()
-        np.savez_compressed(path, temp=G, target=b)
-
-    def measure(self, matrix):
-        print(f"[{datetime.now()}] Getting matrix measurements")
-        matrix_np = matrix.cpu().numpy()
-        
-        rows, cols = matrix_np.shape
-        print(f"Matrix Size: {rows} rows x {cols} columns")
-        
-        epsilon = 1e-9
-        num_zeros = np.count_nonzero(matrix_np <= epsilon)
-        total_elements = matrix_np.size
-        sparsity = (num_zeros / total_elements) * 100
-        
-        print(f"Total Elements: {total_elements}")
-        print(f"Sparsity: {sparsity:.2f}%")
-
-        cond_num = np.linalg.cond(matrix_np)
-        dtype = matrix_np.dtype
-
-        print(f"Condition Number: {cond_num:.2e}")
-        print(f"Data Type: {dtype}")
-        print("="*50)
 
     def orthogonal_matching_pursuit_np(self, A, b, budget: int, lam: float = 1.):
         '''approximately solves min_x |x|_0 s.t. Ax=b using Orthogonal Matching Pursuit
@@ -228,12 +172,6 @@ class GradMatch(EarlyTrain):
         return gradients
 
     def finish_run(self):
-        print("In GradMatch.finish_run()")
-
-        if self.args.use_pretrained_warmstart != "True":
-            print("Skipping selection")
-            return {"indices": np.array([], dtype=np.int64), "weights": np.array([], dtype=np.float32)}
-
         if isinstance(self.model, MyDataParallel):
             self.model = self.model.module
 
@@ -246,24 +184,18 @@ class GradMatch(EarlyTrain):
                 selection_result = np.array([], dtype=np.int64)
                 weights = np.array([], dtype=np.float32)
                 for c in range(self.args.num_classes):
-                    print(f"[{datetime.now()}] Starting selection for class {c}")
                     class_index = np.arange(self.n_train)[self.dst_train.targets == c]
                     cur_gradients = self.calc_gradient(class_index)
-                    print(f"[{datetime.now()}] Found cur_gradients")
                     if self.dst_val is not None:
                         # Also calculate gradients of the validation set.
                         val_class_index = np.arange(val_num)[self.dst_val.targets == c]
 
                         # we collapse validation gradients into one centroid. assumption: low inter-class variability
                         cur_val_gradients = torch.mean(self.calc_gradient(val_class_index, val=True), dim=0)
-                        print(f"[{datetime.now()}] Found cur_val_gradients")
                     else:
                         cur_val_gradients = torch.mean(cur_gradients, dim=0)
                     
-                    # print(f"{c = }, {len(val_class_index) = }")
-                    
                     if self.acf_mapping is not None:
-                        # print(f"acf for class {c}: {self.acf_mapping[c]}, len(class_index)={len(class_index)}")
                         budget = round(len(class_index) * self.acf_mapping[c])
                     else:
                         budget = round(len(class_index) * self.fraction)
@@ -276,7 +208,6 @@ class GradMatch(EarlyTrain):
                     if torch.isnan(cur_val_gradients).all().item():
                         d, n = cur_gradients.shape
                         cur_weights = np.zeros(n, dtype=np.float32) # solving Ax=b for b=0 => x=0
-                        # print(f"set cur_weights to 0 for class {c}")
                     elif self.args.device == "cpu":
                         # Compute OMP on numpy
                         cur_weights = self.orthogonal_matching_pursuit_np(cur_gradients.numpy().T,
@@ -284,13 +215,10 @@ class GradMatch(EarlyTrain):
                                                                           budget=budget,
                                                                           lam=self.lam)
                     else:
-                        # print(cur_gradients.shape, cur_val_gradients.shape)
-                        save_matrices_path = self.args.save_matrices_path + f"label_{c}" if hasattr(self.args, "save_matrices_path") else None
                         cur_weights = self.orthogonal_matching_pursuit(cur_gradients.to(self.args.device).T,
                                                                        cur_val_gradients.to(self.args.device),
                                                                        budget=budget,
-                                                                       lam=self.lam,
-                                                                       save_matrices_path=save_matrices_path)
+                                                                       lam=self.lam)
                     selection_result = np.append(selection_result, class_index[np.nonzero(cur_weights)[0]])
                     weights = np.append(weights, cur_weights[np.nonzero(cur_weights)[0]])
             else:

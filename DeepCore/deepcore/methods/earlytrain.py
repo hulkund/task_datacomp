@@ -146,10 +146,9 @@ class EarlyTrain(CoresetMethod):
 
         # Load warm-start checkpoint
         ckpt_path = self.args.warmstart_ckpt_dir + "warmstart_weights.pth"
-        print(self.args.use_pretrained_warmstart)
-        if self.args.use_pretrained_warmstart == "True":
+        if self.args.use_pretrained_warmstart:
             self.load_warmstart(ckpt_path)
-            print("=> Skipping training, using pretrained warm-start model")
+            print("=> Skipping warmstart training, using pretrained warm-start model")
             return self.finish_run()
 
         for epoch in range(self.epochs):
@@ -170,7 +169,6 @@ class EarlyTrain(CoresetMethod):
             "epoch": self.epochs,
             "seed": self.random_seed,
         }, ckpt_path)
-        print("Done saving")
 
         return self.finish_run()
 

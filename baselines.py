@@ -62,6 +62,14 @@ def check_args(args):
         os.mkdir(npy_parent)
 
 
+def str2bool(v):
+    if v.lower() in ('true'):
+        return True
+    if v.lower() in ('false'):
+        return False
+    raise argparse.ArgumentTypeError(f'Boolean valueexpected, got {v!r}')
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="This is a command line script for reproducing the main DataComp filtering baselines. The output of the script is a numpy file (.npy) containing the uids in the filtered subsets in sorted binary format. Please see README.md for additional information"
@@ -177,6 +185,22 @@ if __name__ == "__main__":
         required=False,
         default=None,
         help="the random seed",
+    )
+
+    parser.add_argument(
+        "--supervised",
+        type=str2bool,
+        required=False,
+        default=None,
+        help="if supervised, we remove labels from training set that are not in query set",
+    )
+
+    parser.add_argument(
+        "--use_pretrained_warmstart",
+        type=str2bool,
+        required=False,
+        default=None,
+        help="if true, use warmstart checkpoint for deepcore methods",
     )
 
     # parser.add_argument(

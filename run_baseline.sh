@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --partition=vision-beery-a100
-#SBATCH --qos=vision-beery-main
+#SBATCH --partition=csail-shared-h200
+#SBATCH --qos=lab-free
 #SBATCH --account=vision-beery
 #SBATCH --gres=gpu:1
 #SBATCH --output=slurm/slurm-%J.out
