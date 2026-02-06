@@ -4,7 +4,7 @@ from typing import Iterator, Optional
 from itertools import product
 
 ROOT_DIR = "/data/vision/beery/scratch/evelyn/task_datacomp"
-config_path = f"{ROOT_DIR}/tune_baselines/config.yaml"
+config_path = f"{ROOT_DIR}/main_scripts/config.yaml"
 
 def create_sweep_dict() -> dict:
     with open(config_path, "r") as file:

@@ -10,4 +10,4 @@
 #SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
 #SBATCH --requeue
 
-python3 tune_baselines/latency.py
+python3 main_scripts/latency.py

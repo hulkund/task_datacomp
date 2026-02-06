@@ -1,5 +1,5 @@
 import os
-from tune_baselines.utils import create_save_folder, create_sweep_dict, get_sweep_combinations
+from main_scripts.utils import create_save_folder, create_sweep_dict, get_sweep_combinations
 
 def _recreate_pt_path(save_folder, test_split, finetune_type, lr, batch_size):
     pt_path = f"{save_folder}{test_split}_{finetune_type}_lr={lr}_batchsize={batch_size}_logits.pt"

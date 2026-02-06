@@ -10,4 +10,4 @@
 #SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
 #SBATCH --requeue
 
-python3 tune_baselines/run_new_train_manager.py
+python3 main_scripts/run_new_train_manager.py
