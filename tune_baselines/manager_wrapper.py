@@ -1,8 +1,6 @@
 import os
 import subprocess
 import time
-import yaml
-from pathlib import Path
 
 USER_NAME = "evelynz"
 

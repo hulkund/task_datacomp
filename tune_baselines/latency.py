@@ -20,9 +20,9 @@ sweep_dict = create_sweep_dict()
 
 dataset_list = [
     ('iWildCam', 'val1', 'test1'),
-    ('iWildCam', 'val2', 'test2'), # 1 failed
-    ('iWildCam', 'val3', 'test3'), # 3 failed
-    # ('iWildCam', 'val4', 'test4'), # 10 failed
+    ('iWildCam', 'val2', 'test2'),
+    ('iWildCam', 'val3', 'test3'),
+    ('iWildCam', 'val4', 'test4'),
 ]
 
 supervised = "True"
@@ -92,7 +92,6 @@ def create_commands():
                     jobs_to_do += 1
                     print(time_path)
                     commands.append(command)
-                    # subprocess.call(["sbatch"] + command)
 
     print(f"{jobs_to_do = }")
     print(f"{total_jobs = }")

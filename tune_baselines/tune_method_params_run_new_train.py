@@ -10,9 +10,7 @@ ROOT_DIR = BASE_DIR.parent
 RUN_NEW_TRAIN = ROOT_DIR / "baselines/run_new_train.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
-# baselines_list = ["no_filter", "random_filter", "clip_score", "match_dist", "gradmatch_acf", "gradmatch", "glister", "tsds"]
-# baselines_list = ["gradmatch", "gradmatch_acf"]
-baselines_list = ["gradmatch_acf"]
+baselines_list = ["no_filter", "random_filter", "clip_score", "match_dist", "gradmatch_acf", "gradmatch", "glister", "tsds"]
 
 sweep_dict = create_sweep_dict()
 
@@ -30,14 +28,13 @@ dataset_list = [
     # ('AutoArborist', 'val2', 'test2'),
     # ('AutoArborist', 'val3', 'test3'),
     # ('AutoArborist', 'val4', 'test4'),
-    ('GeoDE', 'val1', 'test1'),
+    # ('GeoDE', 'val1', 'test1'),
     # ('GeoDE', 'val2', 'test2'),
     # ('GeoDE', 'val3', 'test3'),
     # ('GeoDE', 'val4', 'test4'),
 ]
 
 
-# finetune_list = ["full_finetune_resnet50"]
 finetune_list = ["lora_finetune_vit", "full_finetune_resnet50"]
 lr_list = [0.001]
 batch_size_list = [128]
@@ -57,8 +54,6 @@ for baseline in baselines_list:
     print(f"Tuning method params for {baseline}")
     params = sweep_dict[baseline]
     for param_setting in get_sweep_combinations(params, baseline):
-        # print("Trying param configuration:", param_setting)
-
         for dataset, val_split, test_split in dataset_list:
             for finetune_type in finetune_list:
                 if finetune_type=="linear_probe": lr_list = [0]
@@ -67,15 +62,11 @@ for baseline in baselines_list:
                     for batch_size in batch_size_list:
                         embedding_path      = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
                         
-                        # hard-coded case
-                        if baseline == "zcore":
-                            embedding_path = "/data/vision/beery/scratch/neha/task-datacomp/experiments_again/iWildCam/no_filter_1/embeddings/all_subset_resnet50.npy"
-
                         centroids_path      = f"all_datasets/{dataset}/centroids/train_centroids.pt"
                         val_embedding_path  = f"all_datasets/{dataset}/embeddings/{val_split}_embeddings.npy"
                         save_folder = create_save_folder(dataset, baseline, param_setting)
 
-                        # If subset was made, it would be in this paths
+                        # If subset was made, it would be in this path
                         subset_path = save_folder + f"{test_split}_subset.npy"
 
                         # Run new training job to evaluate the param settings
@@ -89,8 +80,6 @@ for baseline in baselines_list:
                         if not os.path.exists(metrics_path) and os.path.exists(subset_path):
                             command = ["sbatch", str(RUN_NEW_TRAIN), dataset, subset_path, save_folder, "configs/datasets.yaml", str(lr), finetune_type, str(batch_size), checkpoint_path, training_task]
                             jobs_to_submit.append(command)
-                            print("Running command to run new train:", " ".join(command))
-                            # print("Added command to jobs_to_submit:", " ".join(command))
                             subprocess.call(command)
 
 print(f"total_jobs = {len(jobs_to_submit)}")

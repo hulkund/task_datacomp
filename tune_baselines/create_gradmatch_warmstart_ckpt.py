@@ -63,7 +63,6 @@ val4_param_combinations = [
 ]
 
 param_combinations = val1_param_combinations + val2_param_combinations + val3_param_combinations + val4_param_combinations
-param_combinations = [("GeoDE", "val4", 1, "ResNet18", 12)]
 
 supervised = "True"
 use_pretrained_warmstart = "False"
@@ -124,7 +123,6 @@ for baseline in baselines_list:
             command.append(ckpt_dir)
                 
             total_jobs += 1
-            print("Running command to create warmstart checkpoint:", " ".join(command))
             subprocess.call(command)
 
 print(f"{total_jobs = }")

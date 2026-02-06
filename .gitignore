@@ -21,4 +21,4 @@ zcore/results/
 visualizations/diff_visualization*/
 
 analysis/
-all_datasets/
+*.pyc
