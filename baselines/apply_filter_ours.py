@@ -1,3 +1,5 @@
+import time
+
 import multiprocessing as mp
 import os
 import time
@@ -25,6 +27,7 @@ from baselines.utils import FaissIndexIVFFlat
 import argparse
 from baselines.utils import get_dataset
 from DeepCore.deepcore.methods.gradmatch import GradMatch
+from DeepCore.deepcore.methods.glister import Glister
 
 from torch.utils.data import Subset
 
@@ -257,6 +260,7 @@ def load_embedding(embedding_path: str, columns, train_csv_path = None, val_csv_
         uid_to_label_map = {row["uid"] : row["label"] for _, row in train_csv_df.iterrows()}
 
         val_csv_df = pd.read_csv(val_csv_path)
+        print(f"{len(val_csv_df)=}")
         val_labels = set(val_csv_df["label"])
         print("val_labels:", val_labels)
 
@@ -405,20 +409,30 @@ def load_uids_with_random_filter(
 def load_uids_with_tsds(
     val_embedding_path: str, 
     pool_embedding_path: str,
+    fraction: int,
+    random_seed: int,
+    train_csv_path = None,
+    val_csv_path = None
 ) -> np.ndarray:
 
     key = "image_embedding"
     query_df=load_embedding(val_embedding_path, [key,"uid"])
-    candidate_df=load_embedding(pool_embedding_path, [key,"uid"])
+    candidate_df=load_embedding(pool_embedding_path, [key,"uid"], train_csv_path=train_csv_path, val_csv_path=val_csv_path)
+    # candidate_df=load_embedding(pool_embedding_path, [key,"uid"])
+    
     xq=np.stack(query_df["image_embedding"])
     xb=np.stack(candidate_df["image_embedding"])
 
     with open("baselines/tsds_data/config.yaml", "r") as file:
         config = yaml.safe_load(file)
     
-    SAMPLE_SIZE = 1000#config["sample_size"]
+    SAMPLE_SIZE = int(len(candidate_df) * fraction)
+    print(f"{SAMPLE_SIZE = }")
+
     MAX_K = config["max_K"]
-    KDE_K = config["kde_K"]
+    # KDE_K = config["kde_K"]
+    KDE_K = int(len(candidate_df) ** 0.5)
+    print(f"{KDE_K = }")
     SIGMA = config["sigma"]
     ALPHA = config["alpha"]
     C = config["C"]
@@ -450,12 +464,16 @@ def load_uids_with_tsds(
         index_for_kde = FaissIndexIVFFlat(top_features)
         D2, I = index_for_kde.search(top_features, KDE_K)
         kernel = 1 - D2 / (SIGMA ** 2)
-        # logging.info(f'A point has {(kernel > 0).sum(axis=-1).mean() - 1} near-duplicates on average.')
+        print(f'A point has {(kernel > 0).sum(axis=-1).mean() - 1} near-duplicates on average.')
         kernel = kernel * (kernel > 0)
         kde = kernel.sum(axis=-1)
         kde_map = {top_indices_set[i]:kde[i] for i in range(len(top_indices_set))}
         kde_mapfunc = np.vectorize(lambda t: kde_map[t])
         top_kdes = kde_mapfunc(top_indices)
+    
+    print(f"{top_kdes.size = }")
+    nan_count = np.isnan(top_kdes).sum()
+    print(f"top_kdes {nan_count=}")
             
     # logging.info("Start computing the probability assignment.")
     M, N = top_indices.shape[0], xb.shape[0]
@@ -492,7 +510,8 @@ def load_uids_with_tsds(
         assert (1.0 / M - prob_sum) * top_kdes[j][lastK[j] + 1] * M * s <= 1 + 1e-9 or lastK[j] == MAX_K - 2, f'{(1.0 / M - prob_sum) * top_kdes[j][lastK[j] + 1] * M * s}'
     
     # logging.info(f"Start sampling. Sample size: {SAMPLE_SIZE}.")
-    sample_times = np.random.multinomial(SAMPLE_SIZE, global_probs)
+    rng = np.random.default_rng(seed=random_seed)
+    sample_times = rng.multinomial(SAMPLE_SIZE, global_probs)
     sample_indices = []
     for i in range(sample_times.shape[0]):
         sample_indices.extend([i] * sample_times[i])
@@ -524,7 +543,6 @@ def load_uids_with_gradmatch(
     random_seed=42, 
     epochs=50, # paper uses 200, but we've found that finetuned ResNet overfits on iWildCam after 50 epochs
     balance=True, 
-    lam=0.5, # from the paper
     args=None
 ) -> np.ndarray:
     # TODO: put a bunch of the args_dict into config (or hard-code them here)
@@ -532,7 +550,8 @@ def load_uids_with_gradmatch(
         'print_freq': 100, 
         'device': 'cuda', 
         'workers': 4, 
-        'model':'ResNet18', # from the paper
+        # 'model':'ResNet18', # from the paper
+        'model': args.model,
         'selection_optimizer':'SGD', # from the paper
         'selection_momentum':0.9, # from the paper
         'selection_weight_decay':1e-4, # from the paper
@@ -559,29 +578,37 @@ def load_uids_with_gradmatch(
     train_dataset = get_dataset(dataset_name, split='train')
     val_dataset = get_dataset(dataset_name, split=val_split)
 
-    print(f"Before: len(train_dataset.data)={len(train_dataset.data)}, train_dataset.classes={train_dataset.classes}")
-    print(f"Before: len(val_dataset.data)={len(val_dataset.data)}, val_dataset.classes={val_dataset.classes}")
+    print(f"Before: len(train_dataset.data)={len(train_dataset.data)}, train_dataset.classes={sorted(train_dataset.classes)}")
+    print(f"Before: len(val_dataset.data)={len(val_dataset.data)}, val_dataset.classes={sorted(val_dataset.classes)}")
     
     val_labels = set(np.unique(val_dataset.labels))
     print(f"{val_labels = }")
+    train_labels = set(np.unique(train_dataset.labels))
+    common_labels = val_labels.intersection(train_labels)
+    print(f"{common_labels = }")
 
-    train_indices = train_dataset.labels[train_dataset.labels.isin(val_labels)].index
+    train_indices = train_dataset.labels[train_dataset.labels.isin(common_labels)].index
+    val_indices = val_dataset.labels[val_dataset.labels.isin(common_labels)].index
 
-    label_map = {old: new for new, old in enumerate(sorted(val_labels))}
+    label_map = {old: new for new, old in enumerate(sorted(common_labels))}
     print(f"{label_map = }")
 
     filtered_train_df = train_dataset.data.iloc[train_indices].reset_index(drop=True)
     filtered_train_df["label"] = filtered_train_df["label"].map(label_map)
     
-    filtered_val_df = val_dataset.data
+    filtered_val_df = val_dataset.data.iloc[val_indices].reset_index(drop=True)
     filtered_val_df["label"] = filtered_val_df["label"].map(label_map)
 
     # making new train and val datasets
     train_dataset = get_dataset(dataset_name, split='train', dataframe=filtered_train_df)
     val_dataset = get_dataset(dataset_name, split=val_split, dataframe=filtered_val_df)
 
-    print(f"After: len(train_dataset.data)={len(train_dataset.data)}, train_dataset.classes={train_dataset.classes}")
-    print(f"After: len(val_dataset.data)={len(val_dataset.data)}, val_dataset.classes={val_dataset.classes}")
+    print(f"After: len(train_dataset.data)={len(train_dataset.data)}, train_dataset.classes={sorted(train_dataset.classes)}")
+    print(f"After: len(val_dataset.data)={len(val_dataset.data)}, val_dataset.classes={sorted(val_dataset.classes)}")
+
+    print("="*50)
+    print("num labels is equal:", len(train_dataset.classes) == len(val_dataset.classes))
+    print("="*50)
 
     # look at what type the dataset label target is
     print(f"Train dataset size: {len(train_dataset)}")
@@ -598,9 +625,6 @@ def load_uids_with_gradmatch(
     if args.name == "gradmatch_acf":
         acf_mapping = gradmatch_acf_mapping(train_dataset.data, val_dataset.data, args.fraction)
 
-    # Prepare model and args (adapt to your setup)
-    # Example: args should have .num_classes, .device, .selection_batch, .print_freq, .workers, etc.
-
     user_args = vars(args)
 
     # TODO: can probably cross-reference with config file
@@ -608,6 +632,8 @@ def load_uids_with_gradmatch(
         user_args['selection_lr'] = float(user_args['selection_lr'])
     if 'selection_batch' in user_args:
         user_args['selection_batch'] = int(user_args['selection_batch'])
+    if 'lam' in user_args:
+        user_args['lam'] = float(user_args['lam'])
 
     merged_dict = {**user_args, **args_dict}
     args = argparse.Namespace(**merged_dict)
@@ -622,25 +648,19 @@ def load_uids_with_gradmatch(
         epochs=epochs,
         balance=balance,
         dst_val=val_dataset,
-        lam=lam,
+        lam=args.lam,
         args=args,
         acf_mapping=acf_mapping
     )
     print(gradmatch)
+    
     # Run selection
     selection_result = gradmatch.select()
     selected_indices = selection_result["indices"]
-    selected_weights = selection_result["weights"]
 
-    # Filter your dataset using selected_indices
-    filtered_dataset = torch.utils.data.Subset(train_dataset, selected_indices)
     print(f"Selected {len(selected_indices)} samples using GradMatch.")
 
-    # Optionally, save indices or filtered dataset
-    # np.save("gradmatch_selected_indices.npy", selected_indices)
-
     selected_uids = np.array([train_dataset.data.iloc[i]["uid"] for i in selected_indices])
-    # return filtered_dataset, selected_indices, selected_weights, selected_uids
     return selected_uids
 
 def load_uids_with_zcore(
@@ -702,7 +722,8 @@ def load_uids_with_glister(
         'print_freq': 100, 
         'device': 'cuda', 
         'workers': 4, 
-        'model':'ResNet18', # from the paper
+        # 'model':'ResNet18', # from the paper
+        'model': args.model,
         'selection_optimizer':'SGD', # from the paper
         'selection_momentum':0.9, # from the paper
         'selection_weight_decay':1e-4, # from the paper
@@ -781,7 +802,7 @@ def load_uids_with_glister(
     print("Initializing Glister with args:", vars(args))
 
     # Initialize Glister
-    glister = GradMatch(
+    glister = Glister(
         dst_train=train_dataset,
         fraction=fraction,
         random_seed=random_seed,
@@ -796,15 +817,9 @@ def load_uids_with_glister(
     selection_result = glister.select()
     selected_indices = selection_result["indices"]
 
-    # Filter your dataset using selected_indices
-    filtered_dataset = torch.utils.data.Subset(train_dataset, selected_indices)
     print(f"Selected {len(selected_indices)} samples using GradMatch.")
 
-    # Optionally, save indices or filtered dataset
-    # np.save("gradmatch_selected_indices.npy", selected_indices)
-
     selected_uids = np.array([train_dataset.data.iloc[i]["uid"] for i in selected_indices])
-    # return filtered_dataset, selected_indices, selected_weights, selected_uids
     return selected_uids
 
 
@@ -837,15 +852,14 @@ def apply_filter(args: Any) -> None:
 
         train_csv_path = str(Path(csv_root) / filepaths["train"])
         
-        # if dataset_name == "iWildCam":
-        #     train_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/new_splits/train.csv"
-        # elif dataset_name == "AutoArborist":
-        #     train_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/splits/train.csv"
-
         filename = p.name
         val_split = filename.split('_')[0]
         # val_csv_path = f"/data/vision/beery/scratch/neha/task-datacomp/all_datasets/{dataset_name}/redone_splits/{val_split}_id.csv"
         val_csv_path = str(Path(csv_root) / filepaths[val_split])
+
+    # for latency benchmarking
+    start_time = None
+    end_time = None
 
     if args.name == "no_filter":
         uids = load_uids(
@@ -921,32 +935,62 @@ def apply_filter(args: Any) -> None:
     elif args.name == "tsds":
         uids = load_uids_with_tsds(
             val_embedding_path=args.val_embedding_path,
-            pool_embedding_path=args.embedding_path
+            pool_embedding_path=args.embedding_path,
+            fraction=args.fraction,
+            random_seed=args.random_seed,
+            train_csv_path = train_csv_path,
+            val_csv_path = val_csv_path
         )
     elif args.name in ["gradmatch", "gradmatch_acf"]:
-        args.model = 'ResNet18'
+        if hasattr(args, "time_path") and args.time_path:
+            start_time = time.perf_counter()
+        
         uids = load_uids_with_gradmatch(
             fraction=args.fraction, 
             random_seed=args.random_seed,
             balance=True, 
-            lam=1.0,
+            epochs=int(args.num_epochs),
             args=args,
         )
+
+        if hasattr(args, "time_path") and args.time_path:
+            end_time = time.perf_counter()
+
     elif args.name == "zcore":
         uids = load_uids_with_zcore(
             fraction=args.fraction,
             args=args,
         )
     elif args.name == "glister":
-        args.model = 'ResNet18'
+        if hasattr(args, "time_path") and args.time_path:
+            start_time = time.perf_counter()
+
+        # args.model = 'ResNet18'
         uids = load_uids_with_glister(
             fraction=args.fraction, 
             random_seed=args.random_seed,
-            balance=True, 
+            balance=True,
+            epochs=int(args.num_epochs),
             args=args,
         )
+
+        if hasattr(args, "time_path") and args.time_path:
+            end_time = time.perf_counter()
     else:
         raise ValueError(f"Unknown args.name argument: {args.name}")
+
+    if start_time is not None and end_time is not None:
+        if hasattr(args, "time_path") and not os.path.exists(args.time_path):
+            time_elapsed = end_time - start_time
+            print("Saving latency:", time_elapsed, "to path", args.time_path)
+            with open(args.time_path, "w") as f:
+                f.write(str(time_elapsed) + "\n")
+
+    # TEMP
+    return
+
+    if os.path.exists(args.save_path):
+        return
 
     print(f"sorting {len(uids)} uids")
     uids.sort()

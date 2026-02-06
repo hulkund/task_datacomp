@@ -95,6 +95,15 @@ class EarlyTrain(CoresetMethod):
             self.model_optimizer.step()
         return self.finish_train()
 
+    def load_warmstart(self, ckpt_path):
+        ckpt = torch.load(ckpt_path, map_location=self.args.device)
+        state_dict = ckpt["model"]
+
+        if isinstance(self.model, torch.nn.DataParallel):
+            self.model.module.load_state_dict(state_dict)
+        else:
+            self.model.load_state_dict(state_dict)
+
     def run(self):
         torch.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
@@ -135,6 +144,14 @@ class EarlyTrain(CoresetMethod):
 
         self.before_run()
 
+        # Load warm-start checkpoint
+        ckpt_path = self.args.warmstart_ckpt_dir + "warmstart_weights.pth"
+        print(self.args.use_pretrained_warmstart)
+        if self.args.use_pretrained_warmstart == "True":
+            self.load_warmstart(ckpt_path)
+            print("=> Skipping training, using pretrained warm-start model")
+            return self.finish_run()
+
         for epoch in range(self.epochs):
             list_of_train_idx = np.random.choice(np.arange(self.n_pretrain if self.if_dst_pretrain else self.n_train),
                                                  self.n_pretrain_size, replace=False)
@@ -144,6 +161,16 @@ class EarlyTrain(CoresetMethod):
                     epoch + 1) % self.args.selection_test_interval == 0:
                 self.test(epoch)
             self.after_epoch()
+
+        print(f"Saving warmstart weights at: {ckpt_path}")
+        torch.save({
+            "model": self.model.module.state_dict()
+                    if isinstance(self.model, torch.nn.DataParallel)
+                    else self.model.state_dict(),
+            "epoch": self.epochs,
+            "seed": self.random_seed,
+        }, ckpt_path)
+        print("Done saving")
 
         return self.finish_run()
 

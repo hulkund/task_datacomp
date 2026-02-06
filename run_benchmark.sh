@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=vision-beery-a100
+#SBATCH -w beery-a100-1
 #SBATCH --qos=vision-beery-main
 #SBATCH --account=vision-beery
 #SBATCH --gres=gpu:1
@@ -11,12 +12,11 @@
 #SBATCH --requeue
 
 source /data/vision/beery/scratch/evelyn/.bashrc
-
  
 # Echo the positional parameters so they're visible in the job output/logs
-echo "Running run_baseline.sh with parameters:  name: $1  embedding_path: $2  save_path: $3  fraction: $4  val_embedding_path: $5  centroids_path: $6  supervsed: $7  random seed: $8  extra args: ${@:8}"
+echo "Running run_benchmark.sh with parameters:  name: $1  embedding_path: $2  save_path: $3  fraction: $4  val_embedding_path: $5  centroids_path: $6  supervsed: $7  random seed: $8  extra args: ${@:8}"
 
-time python baselines.py \
+python baselines.py \
     --name "$1" \
 	--embedding_path "$2" \
 	--save_path "$3" \

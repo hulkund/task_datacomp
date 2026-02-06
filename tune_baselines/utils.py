@@ -39,3 +39,15 @@ def create_save_folder(dataset: str, method: str, param_setting: dict) -> str:
         os.makedirs(save_folder)
 
     return save_folder
+
+def create_warmstart_ckpt_dir(dataset: str, val_split: str, method: str, model: str, num_epochs: int, random_seed: int):
+    if method not in ["gradmatch", "gradmatch_acf", "glister"]:
+        raise ValueError("Expect gradmatch, gradmatch_acf, or glister as the method")
+    
+    method = "gradmatch"
+    
+    ckpt_dir = f"{ROOT_DIR}/experiments/{dataset}/{val_split}/{method}_{model}_epochs={num_epochs}_seed={random_seed}/"
+    if not os.path.exists(ckpt_dir):
+        print("Creating checkpoint folder:", ckpt_dir)
+        os.makedirs(ckpt_dir)
+    return ckpt_dir

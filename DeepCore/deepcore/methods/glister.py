@@ -122,15 +122,23 @@ class Glister(EarlyTrain):
             for c in range(self.num_classes):
                 c_indx = self.train_indx[self.dst_train.targets == c]
                 c_val_inx = self.val_indx[self.dst_val.targets == c]
+                if len(c_indx) == 0:
+                    # print(f"len(c_indx) == 0: {len(c_indx)=}")
+                    continue
                 self.calc_gradient(index=c_val_inx, val=True, record_val_detail=True)
                 if self.dst_val != self.dst_train:
                     self.calc_gradient(index=c_indx)
-                submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=c_indx,
-                                                            budget=round(self.fraction * len(c_indx)))
-                c_selection_result = submod_optimizer.select(gain_function=lambda idx_gain, selected,
-                                                             **kwargs: torch.matmul(self.train_grads[idx_gain],
-                                                             self.val_grads.view(-1, 1)).detach().cpu().numpy().
-                                                             flatten(), upadate_state=self.update_val_gradients)
+                
+                budget = round(self.fraction * len(c_indx))
+                if budget == 0:
+                    # print(f"budget is 0: {budget=}, {len(c_indx)=}")
+                    continue
+                else:    
+                    submod_optimizer = submodular_optimizer.__dict__[self._greedy](args=self.args, index=c_indx, budget=budget)
+                    c_selection_result = submod_optimizer.select(gain_function=lambda idx_gain, selected,
+                                                                **kwargs: torch.matmul(self.train_grads[idx_gain],
+                                                                self.val_grads.view(-1, 1)).detach().cpu().numpy().
+                                                                flatten(), upadate_state=self.update_val_gradients)
                 print(f"{c = }, {len(c_selection_result) = }")
 
                 selection_result = np.append(selection_result, c_selection_result)

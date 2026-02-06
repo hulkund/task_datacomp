@@ -1,9 +1,34 @@
 import os
 import subprocess
+import time
+import yaml
+from pathlib import Path
+
+# --- QUEUE CONFIGURATION ---
+MAX_QUEUE_SIZE = 15
+POLL_INTERVAL = 3*60*60
+USER_NAME = "evelynz"
+# TARGET_JOB_NAME = "run_baseline_optimized.sh"
+# TARGET_JOB_NAME = "run_baseline_gm_aa1.sh"
+# TARGET_JOB_NAME = "run_baseline_beery_a100.sh"
+TARGET_JOB_NAME = "run_baseline_a100.sh"
+RUN = True
+# RUN = False
+
+def get_specific_job_count():
+    """Counts only jobs matching the specific name."""
+    try:
+        # -n filters by job name, -u by user, -h removes header
+        cmd = ["squeue", "-u", USER_NAME, "-n", TARGET_JOB_NAME, "-h", "-t", "PD,R"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        lines = [line for line in result.stdout.split('\n') if line.strip()]
+        return len(lines)
+    except Exception as e:
+        print(f"Error checking queue: {e}")
+        return MAX_QUEUE_SIZE
 
 from utils import *
 
-from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 
@@ -12,8 +37,7 @@ RUN_CSV_BASELNE = ROOT_DIR / "run_csv_baseline.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
 # baselines_list = ["no_filter", "random_filter", "clip_score", "match_dist", "tsds", "gradmatch", "gradmatch_acf", "glister"]
-# baselines_list = ["gradmatch_acf", "gradmatch", "glister"]
-baselines_list = ["gradmatch_acf"]
+baselines_list = ["gradmatch", "gradmatch_acf"]
 
 sweep_dict = create_sweep_dict()
 
@@ -23,19 +47,34 @@ sweep_dict = create_sweep_dict()
 # dataset_list = [('iWildCam', 'val1', 'test1')] # (dataset, val_split, test_split)
 
 dataset_list = [
-    # ('iWildCam', 'val1', 'test1'),        # DONE (0 fails)
-    # ('iWildCam', 'val2', 'test2'),        # DONE (4 fails)
-    # ('iWildCam', 'val3', 'test3'),        # DONE (4 fails)
-    # ('iWildCam', 'val4', 'test4'),        # DONE (5 fails)
+    # ('iWildCam', 'val1', 'test1'),
+    # ('iWildCam', 'val2', 'test2'),
+    # ('iWildCam', 'val3', 'test3'),
+    # ('iWildCam', 'val4', 'test4'),
     # ('AutoArborist', 'val1', 'test1'),
     # ('AutoArborist', 'val2', 'test2'),
     ('AutoArborist', 'val3', 'test3'),
     # ('AutoArborist', 'val4', 'test4'),
-    # ('GeoDE', 'val1', 'test1'),           # DONE (2 fails)
-    # ('GeoDE', 'val2', 'test2'),           # DONE (3 fails)
-    # ('GeoDE', 'val3', 'test3'),           # DONE (0 fails)
-    # ('GeoDE', 'val4', 'test4'),           # DOING (0 fail)
+    # ('GeoDE', 'val1', 'test1'),
+    # ('GeoDE', 'val2', 'test2'),
+    # ('GeoDE', 'val3', 'test3'),
+    # ('GeoDE', 'val4', 'test4'),
 ]
+
+# dataset_list = [
+#     # ('iWildCam', 'val1', 'test1'),        # DONE (0 fails)
+#     # ('iWildCam', 'val2', 'test2'),        # DONE (9 fails)
+#     # ('iWildCam', 'val3', 'test3'),        # DONE (11 fails)
+#     # ('iWildCam', 'val4', 'test4'),        # DONE (9 fails)
+#     # ('AutoArborist', 'val1', 'test1'),
+#     # ('AutoArborist', 'val2', 'test2'),
+#     # ('AutoArborist', 'val3', 'test3'),
+#     # ('AutoArborist', 'val4', 'test4'),
+#     # ('GeoDE', 'val1', 'test1'),           # DONE (5 fails)
+#     # ('GeoDE', 'val2', 'test2'),           # DONE (10 fails)
+#     # ('GeoDE', 'val3', 'test3'),           # DONE (0 fails)
+#     # ('GeoDE', 'val4', 'test4'),           # DOING (1 fail)
+# ]
 
 supervised = "True"
 # supervised = "False"
@@ -47,18 +86,16 @@ with open(str(DATASETS_CONFIG), 'r') as file:
 
 ### End of evaluation constants ####
 
-total_jobs = 0
-jobs_to_do = 0
+jobs_to_submit = []
 
 for baseline in baselines_list:
     print("="*50)
     print(f"Tuning method params for {baseline}")
     params = sweep_dict[baseline]
     for param_setting in get_sweep_combinations(params, baseline):
-        # print("Trying param configuration:", param_setting)
+        print("Trying param configuration:", param_setting)
 
         for dataset, val_split, test_split in dataset_list:
-            total_jobs += 1
             embedding_path      = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
             
             # hard-coded case
@@ -78,9 +115,9 @@ for baseline in baselines_list:
                 
                 if  baseline in ["match_dist", "match_label"]:
                     task_num = test_split[4]
-                    command = ["sbatch", str(RUN_CSV_BASELNE), baseline, dataset, task_num, fraction, subset_path, random_seed]
+                    command = [str(RUN_CSV_BASELNE), baseline, dataset, task_num, fraction, subset_path, random_seed]
                 else:
-                    command = ["sbatch", str(RUN_BASELINE), baseline, embedding_path, subset_path, fraction, val_embedding_path, centroids_path, supervised, random_seed]
+                    command = [str(RUN_BASELINE), baseline, embedding_path, subset_path, fraction, val_embedding_path, centroids_path, supervised, random_seed]
                     for k, v in param_setting.items():
                         if k == "fraction": continue
                         command.append(f"--{k}")
@@ -102,7 +139,7 @@ for baseline in baselines_list:
                             dataset=dataset,
                             val_split=val_split,
                             method=baseline,
-                            model="ResNet18", # for iWildCam for GradMatch/GradMatch-ACF
+                            model="ResNet18",
                             num_epochs=50,
                             random_seed=random_seed
                         )
@@ -112,18 +149,38 @@ for baseline in baselines_list:
                     command.append("--warmstart_ckpt_dir")
                     command.append(ckpt_dir)
 
-                    save_matrices_path = save_folder + f"deploy_{test_split[4]}_matrices/"
+                print("Running command to create subset:", " ".join(command))
+                jobs_to_submit.append(command)
 
-                    if not os.path.exists(save_matrices_path):
-                        os.makedirs(save_matrices_path)
 
-                    command.append("--save_matrices_path")
-                    command.append(save_matrices_path)
+# --- SUBMISSION MONITOR ---
+print(f"{baselines_list = }")
+print(f"{dataset_list = }")
+print(f"Collected {len(jobs_to_submit)} jobs. Starting managed submission...")
 
-                jobs_to_do += 1
-                # print("Running command to create subset:", " ".join(command))
-                print(subset_path)
-                subprocess.call(command)
+submitted = 0
+total = len(jobs_to_submit)
 
-print(f"{jobs_to_do = }")
-print(f"{total_jobs = }")
+while jobs_to_submit:
+    current_active = get_specific_job_count()
+    
+    if current_active < MAX_QUEUE_SIZE:
+        num_to_spawn = MAX_QUEUE_SIZE - current_active
+        for _ in range(num_to_spawn):
+            if not jobs_to_submit:
+                break
+            
+            cmd = jobs_to_submit.pop(0)
+            command = ["sbatch", "--job-name", TARGET_JOB_NAME] + cmd
+            
+            if RUN == True:
+                subprocess.run(command)
+            
+            submitted += 1
+            print(f"[{submitted}/{total}] Submitted. '{TARGET_JOB_NAME}' active: {current_active + 1}")
+            current_active += 1
+    else:
+        print(f"Queue full for '{TARGET_JOB_NAME}' ({current_active}/{MAX_QUEUE_SIZE}). Waiting...")
+        time.sleep(POLL_INTERVAL)
+
+print("All baseline jobs submitted.")

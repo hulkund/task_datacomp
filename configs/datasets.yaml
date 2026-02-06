@@ -29,7 +29,6 @@ AutoArborist:
         val3: 'valSurrey.csv'
         val4: 'valWashingtonDc.csv'
 iWildCam:
-    # csv_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/new_splits/'
     csv_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/redone_splits/'
     img_root_path: '/data/vision/beery/scratch/neha/task-datacomp/all_datasets/iWildCam/iwildcam_v2.0/train/'
     task_list: ["test1", "test2", "test3", "test4"]

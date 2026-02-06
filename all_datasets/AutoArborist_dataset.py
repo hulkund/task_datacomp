@@ -19,8 +19,8 @@ class NormalizeTo01(object):
 
 
 class AutoArboristDataset(TaskDataset):
-    def __init__(self, split, subset_path=None, transform=None):
-        super().__init__('AutoArborist', split, subset_path)
+    def __init__(self, split, subset_path=None, transform=None, dataframe=None):
+        super().__init__('AutoArborist', split, subset_path, dataframe)
         if transform is None:
             self.transform = transforms.Compose([NormalizeTo01()])
         else: self.transform=transform
@@ -29,6 +29,8 @@ class AutoArboristDataset(TaskDataset):
         self.labels=self.data['label']
         self.category_name=self.data['genus']
         self.mapping=dict(zip(self.labels, self.category_name))
+        self.targets=torch.tensor(self.data['label'].to_numpy(), dtype=torch.long)
+        self.classes=self.labels.unique()
     
     def __getitem__(self, idx):
         img_path = self.img_root_path+self.data.iloc[idx]['street_level']

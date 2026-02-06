@@ -12,8 +12,8 @@ from torchvision import transforms
 from all_datasets.task_dataset import TaskDataset
 
 class GeoDEDataset(TaskDataset):
-    def __init__(self, split, subset_path=None, transform=None):
-        super().__init__('GeoDE', split, subset_path)
+    def __init__(self, split, subset_path=None, transform=None, dataframe=None):
+        super().__init__('GeoDE', split, subset_path, dataframe)
         if transform is None:
             self.transform = transforms.Compose([transforms.Resize((256, 256)),transforms.ToTensor()])
         else: self.transform=transform
@@ -23,17 +23,20 @@ class GeoDEDataset(TaskDataset):
         self.category_name=self.data['object']
         self.mapping=dict(zip(self.labels, self.category_name))
         self.img_path_col='file_path'
+        self.targets=torch.tensor(self.data['label'].to_numpy(), dtype=torch.long)
+        self.classes=self.labels.unique()
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_path = self.img_root_path+self.data.iloc[idx][self.img_path_col]
+        row = self.data.iloc[idx]
+        img_path = self.img_root_path+row[self.img_path_col]
         image = Image.open(img_path)
-        label = self.data.iloc[idx]['label'] 
-        label_str = self.data.iloc[idx]['object'] 
-        uid = self.data.iloc[idx]['uid'] 
-        country = self.data.iloc[idx]['ip_country']
+        label = row['label'] 
+        label_str = row['object'] 
+        uid = row['uid'] 
+        country = row['ip_country']
         text = "image of {} taken in the country {}".format(label_str, country)
         if self.transform:
             image = self.transform(image)

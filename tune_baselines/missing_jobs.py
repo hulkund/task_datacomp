@@ -11,8 +11,6 @@ RUN_BASELINE = ROOT_DIR / "run_baseline.sh"
 RUN_CSV_BASELNE = ROOT_DIR / "run_csv_baseline.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
-# baselines_list = ["no_filter", "random_filter", "clip_score", "match_dist", "tsds", "gradmatch", "gradmatch_acf", "glister"]
-# baselines_list = ["gradmatch_acf", "gradmatch", "glister"]
 baselines_list = ["gradmatch_acf"]
 
 sweep_dict = create_sweep_dict()
@@ -24,54 +22,47 @@ sweep_dict = create_sweep_dict()
 
 dataset_list = [
     # ('iWildCam', 'val1', 'test1'),        # DONE (0 fails)
-    # ('iWildCam', 'val2', 'test2'),        # DONE (4 fails)
-    # ('iWildCam', 'val3', 'test3'),        # DONE (4 fails)
-    # ('iWildCam', 'val4', 'test4'),        # DONE (5 fails)
+    # ('iWildCam', 'val2', 'test2'),        # DONE (9 fails)
+    # ('iWildCam', 'val3', 'test3'),        # DONE (11 fails)
+    # ('iWildCam', 'val4', 'test4'),        # DONE (9 fails)
     # ('AutoArborist', 'val1', 'test1'),
     # ('AutoArborist', 'val2', 'test2'),
-    ('AutoArborist', 'val3', 'test3'),
+    # ('AutoArborist', 'val3', 'test3'),
     # ('AutoArborist', 'val4', 'test4'),
-    # ('GeoDE', 'val1', 'test1'),           # DONE (2 fails)
-    # ('GeoDE', 'val2', 'test2'),           # DONE (3 fails)
+    ('GeoDE', 'val1', 'test1'),           # DONE (5 fails)
+    # ('GeoDE', 'val2', 'test2'),           # DONE (10 fails)
     # ('GeoDE', 'val3', 'test3'),           # DONE (0 fails)
-    # ('GeoDE', 'val4', 'test4'),           # DOING (0 fail)
+    # ('GeoDE', 'val4', 'test4'),           # DOING (1 fail)
 ]
 
 supervised = "True"
-# supervised = "False"
-
 use_pretrained_warmstart = "True"
-
-with open(str(DATASETS_CONFIG), 'r') as file:
-    datasets_config = yaml.safe_load(file)
 
 ### End of evaluation constants ####
 
 total_jobs = 0
-jobs_to_do = 0
 
 for baseline in baselines_list:
-    print("="*50)
-    print(f"Tuning method params for {baseline}")
     params = sweep_dict[baseline]
     for param_setting in get_sweep_combinations(params, baseline):
-        # print("Trying param configuration:", param_setting)
 
         for dataset, val_split, test_split in dataset_list:
-            total_jobs += 1
             embedding_path      = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
-            
-            # hard-coded case
-            if baseline == "zcore":
-                embedding_path = "/data/vision/beery/scratch/neha/task-datacomp/experiments_again/iWildCam/no_filter_1/embeddings/all_subset_resnet50.npy"
-
             centroids_path      = f"all_datasets/{dataset}/centroids/train_centroids.pt"
             val_embedding_path  = f"all_datasets/{dataset}/embeddings/{val_split}_embeddings.npy"
-            save_folder = create_save_folder(dataset, baseline, param_setting)
+            
+            save_folder_sb_16 = create_save_folder(dataset, baseline, param_setting)
+            subset_path_sb_16 = save_folder_sb_16 + f"{test_split}_subset.npy"
+            
+            if not os.path.exists(subset_path_sb_16):
+                param_setting['selection_batch'] = 4 # try lower selection batch
+                save_folder = create_save_folder(dataset, baseline, param_setting)
+                subset_path = save_folder + f"{test_split}_subset.npy"
 
-            # Create subset
-            subset_path = save_folder + f"{test_split}_subset.npy"
-            if not os.path.exists(subset_path):
+                if os.path.exists(subset_path):
+                    print("Already exists")
+                    continue
+
                 assert "fraction" in param_setting
                 fraction = str(param_setting["fraction"])
                 random_seed = str(param_setting["random_seed"])
@@ -102,7 +93,7 @@ for baseline in baselines_list:
                             dataset=dataset,
                             val_split=val_split,
                             method=baseline,
-                            model="ResNet18", # for iWildCam for GradMatch/GradMatch-ACF
+                            model="ResNet18",
                             num_epochs=50,
                             random_seed=random_seed
                         )
@@ -112,18 +103,8 @@ for baseline in baselines_list:
                     command.append("--warmstart_ckpt_dir")
                     command.append(ckpt_dir)
 
-                    save_matrices_path = save_folder + f"deploy_{test_split[4]}_matrices/"
-
-                    if not os.path.exists(save_matrices_path):
-                        os.makedirs(save_matrices_path)
-
-                    command.append("--save_matrices_path")
-                    command.append(save_matrices_path)
-
-                jobs_to_do += 1
-                # print("Running command to create subset:", " ".join(command))
+                total_jobs += 1
                 print(subset_path)
-                subprocess.call(command)
+                # subprocess.call(command)
 
-print(f"{jobs_to_do = }")
 print(f"{total_jobs = }")

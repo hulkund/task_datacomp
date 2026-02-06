@@ -1,33 +1,28 @@
-import sys
 import os
 from utils import get_dataset
 import argparse
 import numpy as np
-from sklearn.linear_model import LogisticRegression
 from torch.utils.data import DataLoader
-from torchvision.datasets import CIFAR100
-from tqdm import tqdm
-from sklearn.metrics import precision_score, recall_score, accuracy_score
+from torchvision import transforms
 from transformers import CLIPProcessor, CLIPModel
-import timm
-import json
 import torch
-import clip
-
-def fix_embedding(embedding):
-    dict_embed = {}
-    for e in embedding:
-        for key, value in e.items():
-            if key not in dict_embed:
-                dict_embed[key] = []
-            dict_embed[key].append(value)
-    return dict_embed
-
     
+# CLIP-specific constants
+CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]
+CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
+
+CLIP_TRANSFORM = transforms.Compose([
+    transforms.Resize(224),              # Resize shortest side
+    transforms.CenterCrop(224),          # Ensure 224x224 square
+    transforms.ToTensor(),               # Convert to [0, 1]
+    transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD) # Shift to CLIP distribution
+])
+
 def get_clip_embeddings(data_loader, clip_processor, clip_model):
+    print(f"get_clip_embedding with CLIP_TRANSFORM={CLIP_TRANSFORM} and no clip_processor for image")
     embeddings_list = []
     for images, texts, labels, uids in data_loader:
-        image_inputs = clip_processor(images=images, padding=True, return_tensors="pt")
+        image_inputs = {"pixel_values": images.to(clip_model.device)}
         text_inputs = clip_processor(text=texts, padding=True, return_tensors="pt")
 
         with torch.no_grad():
@@ -39,28 +34,9 @@ def get_clip_embeddings(data_loader, clip_processor, clip_model):
         
         for img_emb, txt_emb, similarity_score, texts, uids, labels in zip(image_embeddings, text_embeddings, similarity_scores, texts, uids, labels):
             embeddings_list.append({"image_embedding": img_emb.numpy(), 
-                               "text_embedding": txt_emb.numpy(), 
-                               "similarity_score": similarity_score.numpy(),
-                               "text": texts, 
-                               "uid": uids,
-                               "label": labels})
-            
-    return embeddings_list
-
-def get_dino_embeddings(data_loader, preprocess, model):
-    embeddings_list = []
-    for images, texts, labels, uids in data_loader:
-        # image_inputs = preprocess(images)
-
-        with torch.no_grad():
-            image_features = model(images)
-            image_embeddings = image_features / image_features.norm(dim=-1, keepdim=True)
-        
-        for img_emb, texts, uids, labels in zip(image_embeddings, texts, uids, labels):
-            embeddings_list.append({"image_embedding": img_emb.numpy(),
-                                    "text_embedding": None,  # DINO does not use text embeddings
-                                    "similarity_score": None,  # No similarity score for DINO
-                                    "text": texts,
+                                    "text_embedding": txt_emb.numpy(), 
+                                    "similarity_score": similarity_score.numpy(),
+                                    "text": texts, 
                                     "uid": uids,
                                     "label": labels})
             
@@ -71,27 +47,12 @@ def get_embedding(embedding_type, dataset_name, split):
         model_name = "openai/clip-vit-base-patch32"
         preprocess = CLIPProcessor.from_pretrained(model_name)
         model = CLIPModel.from_pretrained(model_name)
-        dataset = get_dataset(dataset_name=args.dataset_name,
-                                 split=args.split,
-                                subset_path=None)
+        dataset = get_dataset(dataset_name=dataset_name,
+                              split=split,
+                              subset_path=None,
+                              transform=CLIP_TRANSFORM)
         data_loader = DataLoader(dataset, batch_size=32, shuffle=False)
         embeddings = get_clip_embeddings(data_loader, preprocess, model)
-    elif embedding_type == "dino":
-        model = timm.create_model(
-            'vit_small_patch16_224.dino',
-            pretrained=True,
-            num_classes=0,  # remove classifier nn.Linear
-        )
-        model = model.eval()
-        # get model specific transforms (normalization, resize)
-        data_config = timm.data.resolve_model_data_config(model)
-        preprocess = timm.data.create_transform(**data_config, is_training=False)
-        dataset = get_dataset(dataset_name=args.dataset_name,
-                                 split=args.split,
-                                subset_path=None,
-                                transform=preprocess)
-        data_loader = DataLoader(dataset, batch_size=32, shuffle=False)
-        embeddings = get_dino_embeddings(data_loader, preprocess, model)
     else:
         raise ValueError(f"Unknown embedding type: {embedding_type}")
     return embeddings
@@ -101,7 +62,7 @@ parser.add_argument(
     "--dataset_name",
     type=str,
     required=True,
-    choices=["FMoW","COOS","iWildCam","GeoDE", "AutoArborist", "SelfDrivingCar", "iWildCamCropped", "CropHarvest", "FishDetection", "ReID"],
+    choices=["iWildCam", "GeoDE", "AutoArborist"],
     default="COOS",
     help="Dataset name",
 )
@@ -114,9 +75,9 @@ parser.add_argument(
 parser.add_argument(
     "--embedding_type",
     type=str,
-    choices=["clip", "dino"],
+    choices=["clip"],
     required=True,
-    help="dino, clip",
+    help="clip",
 )
 parser.add_argument(
     "--save_path",
@@ -128,6 +89,6 @@ args = parser.parse_args()
 if not os.path.exists(args.save_path):
     print(f"Getting {args.embedding_type} embeddings for {args.split} split of {args.dataset_name} dataset")
     embeddings = get_embedding(args.embedding_type, args.dataset_name, args.split)
-    # Convert to numpy array
     np.savez(args.save_path, embeddings=embeddings)
+    print(f"Done. Embeddings saved to {args.save_path}")
 

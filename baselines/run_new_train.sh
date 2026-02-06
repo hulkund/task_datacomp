@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=vision-shared-a100,vision-shared-h100
+#SBATCH --partition=vision-shared-a100,vision-shared-h200,csail-shared-h200
 #SBATCH --qos=lab-free
 #SBATCH --account=vision-beery
 #SBATCH --output=slurm/slurm-%J.out
@@ -30,7 +30,7 @@ TRAINING_TASK="$9"
 echo "Running with: Dataset=$DATASET_NAME | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK"
 
 # Run the training script
-python baselines/train_on_subset.py \
+time python baselines/train_on_subset.py \
     --dataset_name "$DATASET_NAME" \
     --subset_path "$SUBSET_PATH" \
     --outputs_path "$OUTPUTS_PATH" \

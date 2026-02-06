@@ -94,9 +94,9 @@ def get_dataset(dataset_name,split,subset_path=None,transform=None,dataframe=Non
     elif dataset_name == "iWildCamCropped":
         dataset = iWildCamCroppedDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "GeoDE":
-        dataset = GeoDEDataset(split=split, subset_path=subset_path, transform=transform)
+        dataset = GeoDEDataset(split=split, subset_path=subset_path, transform=transform, dataframe=dataframe)
     elif dataset_name == "AutoArborist":
-        dataset = AutoArboristDataset(split=split, subset_path=subset_path, transform=transform)
+        dataset = AutoArboristDataset(split=split, subset_path=subset_path, transform=transform, dataframe=dataframe)
     elif dataset_name == "CropHarvest":
         dataset = CropHarvestDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "SelfDrivingCar":
@@ -120,6 +120,7 @@ def get_metrics(predictions, ground_truth):
         dict: contains `acc`, `accuracy`, and `class_avg_acc`.
     """
     acc = accuracy_score(ground_truth, predictions)
+    print(f"{acc=}")
     labels = np.unique(ground_truth)
     conf_mat = confusion_matrix(ground_truth, predictions, labels=labels)
 
