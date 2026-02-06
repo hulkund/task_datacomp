@@ -12,20 +12,20 @@ ROOT_DIR = BASE_DIR.parent
 RUN_BASELINE = ROOT_DIR / "run_baseline.sh"
 RUN_CSV_BASELINE = ROOT_DIR / "run_csv_baseline.sh"
 
+# --- Configuration ---
+# Subset selection methods to run
 baselines_list = ["gradmatch", "gradmatch_acf"]
 
+# Parameter sweep loaded from config.yaml
 sweep_dict = create_sweep_dict()
 
-### For evaluation ###
-
+# (dataset, val_split, test_split) -- uncomment to add datasets/splits
 dataset_list = [
     ('AutoArborist', 'val3', 'test3'),
 ]
 
 supervised = "True"
 use_pretrained_warmstart = "True"
-
-### End of evaluation constants ####
 
 
 def create_commands():
@@ -97,10 +97,10 @@ def create_commands():
 
 
 if __name__ == "__main__":
-    MAX_QUEUE_SIZE = 15
-    POLL_INTERVAL = 3 * 60 * 60
-    TARGET_JOB_NAME = "run_baseline_a100.sh"
-    RUN = True
+    MAX_QUEUE_SIZE = 15             # max concurrent jobs in SLURM queue
+    POLL_INTERVAL = 3 * 60 * 60    # seconds between queue checks
+    TARGET_JOB_NAME = "run_baseline_a100.sh"  # SLURM job name to track
+    RUN = True                     # False = collect commands only, True = submit
 
     jobs_to_submit = create_commands()
 

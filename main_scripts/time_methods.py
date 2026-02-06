@@ -9,13 +9,17 @@ ROOT_DIR = BASE_DIR.parent
 
 RUN_BASELINE = ROOT_DIR / "run_benchmark.sh"
 
+# --- Configuration ---
+# Subset selection methods
 BASELINES = ["gradmatch_acf", "gradmatch", "glister"]
 
+# Warmstart training settings for DeepCore methods
 NUM_EPOCHS = 50
 MODEL_ARCH = "ResNet18"
 SUPERVISED = True
 USE_PRETRAINED_WARMSTART = True
 
+# (dataset, val_split, test_split)
 DATASET_LIST = [
     ('iWildCam', 'val1', 'test1'),
     ('iWildCam', 'val2', 'test2'),
@@ -23,6 +27,7 @@ DATASET_LIST = [
     ('iWildCam', 'val4', 'test4'),
 ]
 
+# Parameter sweep loaded from config.yaml
 sweep_dict = create_sweep_dict()
 
 total_jobs = 0

@@ -10,16 +10,20 @@ ROOT_DIR = BASE_DIR.parent
 
 RUN_BASELINE = ROOT_DIR / "run_baseline.sh"
 
+# --- Configuration ---
 SUPERVISED = True
 
+# Datasets, validation splits, and random seeds to train over
 DATASETS = ["iWildCam", "AutoArborist", "GeoDE"]
 VAL_SPLITS = ["val1", "val2", "val3", "val4"]
 SEEDS = [0, 1, 42]
+
+# Warmstart training settings for DeepCore methods
 NUM_EPOCHS = 50
 MODEL_ARCH = "ResNet18"
-
 BASELINE = "gradmatch"
 
+# Gradmatch hyperparameters
 SELECTION_BATCH = "16"
 SELECTION_LR = "0.01"
 LAM = "0.5"

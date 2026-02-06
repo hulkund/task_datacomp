@@ -10,13 +10,17 @@ ROOT_DIR = BASE_DIR.parent
 
 RUN_BASELINE = ROOT_DIR / "run_benchmark.sh"
 
+# --- Configuration ---
+# Subset selection methods to benchmark
 BASELINES = ["gradmatch_acf", "gradmatch", "glister"]
 
+# Warmstart training settings
 NUM_EPOCHS = 50
 MODEL_ARCH = "ResNet18"
 SUPERVISED = True
 USE_PRETRAINED_WARMSTART = True
 
+# (dataset, val_split, test_split) -- uncomment to add datasets/splits
 DATASET_LIST = [
     ('iWildCam', 'val1', 'test1'),
     ('iWildCam', 'val2', 'test2'),
@@ -24,6 +28,7 @@ DATASET_LIST = [
     ('iWildCam', 'val4', 'test4'),
 ]
 
+# Parameter sweep loaded from config.yaml
 sweep_dict = create_sweep_dict()
 
 def create_commands():
@@ -90,9 +95,9 @@ def create_commands():
     return commands
 
 if __name__ == "__main__":
-    MAX_QUEUE_SIZE = 20
-    POLL_INTERVAL = 60*30
-    TARGET_JOB_NAME = "run_benchmark.sh"
+    MAX_QUEUE_SIZE = 20        # max concurrent jobs in SLURM queue
+    POLL_INTERVAL = 60*30      # seconds between queue checks
+    TARGET_JOB_NAME = "run_benchmark.sh"  # SLURM job name to track
 
     jobs_to_submit = create_commands()
 

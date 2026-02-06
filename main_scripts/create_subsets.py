@@ -10,15 +10,21 @@ ROOT_DIR = BASE_DIR.parent
 RUN_BASELINE = ROOT_DIR / "run_baseline.sh"
 RUN_CSV_BASELINE = ROOT_DIR / "run_csv_baseline.sh"
 
+# --- Configuration ---
+# Subset selection methods to run
 BASELINES = ["no_filter", "random_filter", "clip_score", "match_dist", "tsds", "gradmatch", "gradmatch_acf", "glister"]
+# Methods that take CSV input instead of embeddings
 CSV_BASELINES = {"match_dist", "match_label"}
+# DeepCore methods that require a warmstart checkpoint
 WARMSTART_BASELINES = {"gradmatch", "gradmatch_acf", "glister"}
 
+# Warmstart training settings for DeepCore methods
 NUM_EPOCHS = 50
 MODEL_ARCH = "ResNet18"
 SUPERVISED = True
 USE_PRETRAINED_WARMSTART = True
 
+# (dataset, val_split, test_split)
 DATASET_LIST = [
     ('iWildCam', 'val1', 'test1'),
     # ('iWildCam', 'val2', 'test2'),
@@ -34,6 +40,7 @@ DATASET_LIST = [
     # ('GeoDE', 'val4', 'test4'),
 ]
 
+# Parameter sweep loaded from config.yaml
 sweep_dict = create_sweep_dict()
 
 total_jobs = 0

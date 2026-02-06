@@ -13,12 +13,14 @@ ROOT_DIR = BASE_DIR.parent
 RUN_NEW_TRAIN = ROOT_DIR / "baselines/run_new_train.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
+# --- Configuration ---
+# Subset selection methods to evaluate
 baselines_list = ["no_filter", "random_filter", "clip_score", "match_dist", "gradmatch_acf", "gradmatch", "glister", "tsds"]
 
+# Parameter sweep loaded from config.yaml
 sweep_dict = create_sweep_dict()
 
-### For evaluation ###
-
+# (dataset, val_split, test_split) -- uncomment to add datasets/splits
 dataset_list = [
     ('iWildCam', 'val1', 'test1'),
     ('iWildCam', 'val2', 'test2'),
@@ -34,14 +36,13 @@ dataset_list = [
     ('GeoDE', 'val4', 'test4'),
 ]
 
+# Training settings to sweep over
 finetune_list = ["lora_finetune_vit", "full_finetune_resnet50"]
 lr_list = [0.001]
 batch_size_list = [128]
 
 with open(str(DATASETS_CONFIG), 'r') as file:
     datasets_config = yaml.safe_load(file)
-
-### End of evaluation constants ####
 
 
 def create_commands():
@@ -85,9 +86,9 @@ def create_commands():
 
 
 if __name__ == "__main__":
-    MAX_QUEUE_SIZE = 10
-    POLL_INTERVAL = 5 * 60
-    TARGET_JOB_NAME = "run_new_train.sh"
+    MAX_QUEUE_SIZE = 10        # max concurrent jobs in SLURM queue
+    POLL_INTERVAL = 5 * 60     # seconds between queue checks
+    TARGET_JOB_NAME = "run_new_train.sh"  # SLURM job name to track
 
     jobs_to_submit = create_commands()
 

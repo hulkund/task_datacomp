@@ -11,12 +11,16 @@ ROOT_DIR = BASE_DIR.parent
 RUN_NEW_TRAIN = ROOT_DIR / "baselines/run_new_train.sh"
 DATASETS_CONFIG = ROOT_DIR / "configs/datasets.yaml"
 
+# --- Configuration ---
+# Subset selection methods to evaluate
 BASELINES = ["no_filter", "random_filter", "clip_score", "match_dist", "gradmatch_acf", "gradmatch", "glister", "tsds"]
 
+# Training settings to sweep over for fine-tuning
 FINETUNE_TYPES = ["lora_finetune_vit", "full_finetune_resnet50"]
 LR_LIST = [0.001]
 BATCH_SIZE_LIST = [128]
 
+# (dataset, val_split, test_split)
 DATASET_LIST = [
     ('iWildCam', 'val1', 'test1'),
     # ('iWildCam', 'val2', 'test2'),
@@ -32,6 +36,7 @@ DATASET_LIST = [
     # ('GeoDE', 'val4', 'test4'),
 ]
 
+# Parameter sweep loaded from config.yaml
 sweep_dict = create_sweep_dict()
 
 with open(str(DATASETS_CONFIG), 'r') as file:
