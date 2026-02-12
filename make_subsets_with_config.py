@@ -23,9 +23,9 @@ import yaml
 # batch_size_list = [32]
 
 dataset_list = ['SelfDrivingCar'] 
-baselines_list = ["no_filter", "clip_score", "random_filter", "image_based", "image_alignment"]
+baselines_list = ["no_filter"]
 finetune_list = ["full_finetune_resnet50"]
-lr_list = [0.001,0.0001]
+lr_list = [0.001]
 batch_size_list = [128]
 
 # Open the YAML baselines configuration file
@@ -75,7 +75,7 @@ for dataset in dataset_list:
                                                                                                                       centroids_path)))
                             if not os.path.exists(save_folder+f"{task}_{finetune_type}_lr={lr}_metrics.json"):
                                 print(f"calling running new training job with the following args {dataset}, {training_task}")
-                                subprocess.call(shlex.split('sbatch baselines/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s'%(dataset, 
+                                subprocess.call(shlex.split('sbatch training/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s'%(dataset, 
                                                                                                                                save_path, 
                                                                                                                                save_folder,
                                                                                                                         'configs/datasets.yaml',

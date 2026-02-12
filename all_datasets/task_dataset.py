@@ -10,8 +10,7 @@ from PIL import Image
 import pandas as pd
 import sys
 sys.path.append("../")
-sys.path.append("/data/vision/beery/scratch/neha/task-datacomp/")
-
+sys.path.append("/data/vision/beery/scratch/hasic/task-datacomp/")
 
 
 with open('configs/datasets.yaml', 'r') as file:
