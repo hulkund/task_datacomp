@@ -1,5 +1,4 @@
 import os
-import clip
 import torch
 import sys
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
@@ -21,7 +20,7 @@ import itertools
 from pytorch_metric_learning import losses
 import timm
 # from utils import get_dataset, get_metrics, get_train_val_dl
-from utils import get_metrics
+from baselines.utils import get_metrics
 import pandas as pd
 import pdb
 
@@ -43,7 +42,8 @@ def train_reid(model,
           num_epochs: int = 30, 
           lr: float = 0.01,
           C: float = 0.75,
-          batch_size: int = 128):
+          batch_size: int = 128,
+          seed: int = 42):
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
         classifier = LogisticRegression(random_state=0, C=0.75, max_iter=1000, verbose=1)

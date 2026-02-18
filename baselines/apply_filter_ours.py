@@ -36,6 +36,7 @@ from filters.clip_filter import load_uids_with_clip_score
 from filters.text_alignment_filter import load_uids_with_text_alignment
 from filters.tsds_filter import load_uids_with_tsds
 from filters.utils import load_uids
+from filters.prism_filter import load_uids_with_partition_strategy
 
 
 
@@ -127,6 +128,15 @@ def apply_filter(args: Any) -> None:
             lam=1.0,
             args=args,
         )
+    elif args.name == "prism":
+        uids = load_uids_with_partition_strategy(
+            labeled_dataset=args.labeled_dataset,
+            unlabeled_dataset=args.unlabeled_dataset,
+            model=args.model,
+            nclasses=args.nclasses,
+            budget=args.budget,
+            args=args.partition_args
+    )
     else:
         raise ValueError(f"Unknown args.name argument: {args.name}")
 

@@ -6,14 +6,12 @@
 #SBATCH --gres=gpu:1
 #SBATCH -c 8
 #SBATCH --mem=100G
-#SBATCH --time=1-23:00:00
-#SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
+#SBATCH --time=15:00:00
 #SBATCH --requeue
 
-source /data/vision/beery/scratch/evelyn/.bashrc
+source /data/vision/beery/scratch/neha/bash.rc
 conda init
 conda activate datacomp
- 
 
 # Assign arguments to variables
 DATASET_NAME="$1"
@@ -25,12 +23,13 @@ FINETUNE_TYPE="$6"
 BATCH_SIZE="$7"
 CHECKPOINT_PATH="$8"
 TRAINING_TASK="$9"
+RELABELED_TRAIN_CSV="${10}"
 
 # One-liner echo for debugging
-echo "Running with: Dataset=$DATASET_NAME | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK"
+echo "Running with: Dataset=$DATASET_NAME | Train_csv_custom=$RELABELED_TRAIN_CSV | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK"
 
 # Run the training script
-python baselines/train_on_subset.py \
+python training/train_on_subset.py \
     --dataset_name "$DATASET_NAME" \
     --subset_path "$SUBSET_PATH" \
     --outputs_path "$OUTPUTS_PATH" \
@@ -40,3 +39,4 @@ python baselines/train_on_subset.py \
     --batch_size "$BATCH_SIZE" \
     --checkpoint_path "$CHECKPOINT_PATH" \
     --training_task "$TRAINING_TASK" \
+    --relabeled_train_csv "$RELABELED_TRAIN_CSV"

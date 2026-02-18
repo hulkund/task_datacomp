@@ -1,5 +1,4 @@
 import os
-import clip
 import torch
 import sys
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
@@ -11,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
-from model_backbone import get_lora_model, get_model_processor, get_features
+from training.model_backbone import get_lora_model, get_model_processor, get_features
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -34,7 +33,8 @@ def train_regression(model,
           lr: float = 0.01,
           C: float = 0.75,
           batch_size: int = 128,
-          num_classes=1):
+          num_classes=1,
+          seed: int = 42):
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
         pca = PCA(n_components=512)

@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split, Subset
 from sklearn.linear_model import LogisticRegression
 from tqdm import tqdm
-from baselines.model_backbone import get_lora_model, get_model_processor, get_features
+from training.model_backbone import get_lora_model, get_model_processor, get_features
 from baselines.utils import get_dataset, get_metrics, get_train_val_dl
 import yaml
 import subprocess

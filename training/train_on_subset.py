@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from model_backbone import get_lora_model, get_model_processor, get_features
-from utils import get_dataset, get_metrics, get_train_val_dl
+from training.model_backbone import get_lora_model, get_model_processor, get_features
+from baselines.utils import get_dataset, get_metrics, get_train_val_dl
 from train_engine import TrainEngine
 
 # Device setup
@@ -33,9 +33,9 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Train and evaluate model on subset.")
     parser.add_argument("--dataset_name", type=str, required=True,
-                        choices=["FMoW","COOS","iWildCam","GeoDE","CropHarvest","AutoArborist","SelfDrivingCar","ReID"],
+                        choices=["iWildCam","GeoDE","CropHarvest","AutoArborist","SelfDrivingCar","ReID"],
                         default="iWildCam", help="Dataset name")
-    parser.add_argument("--subset_path", type=str, required=True, help="subset uid path")
+    parser.add_argument("--subset_path", type=str, required=False, help="subset uid path")
     parser.add_argument("--dataset_config", type=str, required=True, help="dataset config")
     parser.add_argument("--lr", type=float, required=False, default=0.01, help="Learning rate")
     parser.add_argument("--finetune_type", type=str, required=True,
@@ -49,6 +49,7 @@ def main():
                         choices=["classification","regression","detection","reid"])
     parser.add_argument("--seed", type=int, default=42, help="seed for reproducibility")
     parser.add_argument("--only_evaluate", action="store_true", default=False, help="Whether to only evaluate the model")
+    parser.add_argument("--relabeled_train_csv", type=str, required=False, default=None, help="Path to custom train CSV")
     args = parser.parse_args()
 
     # Get model and preprocessing
@@ -59,8 +60,12 @@ def main():
         dataset_config = yaml.safe_load(f)
     task_list = dataset_config[args.dataset_name]['task_list']
 
-    # Load and preprocess training dataset
-    dataset = get_dataset(dataset_name=args.dataset_name, split='train', subset_path=args.subset_path, transform=preprocess)
+    # Load and preprocess training dataset if not relabeled CSV provided
+    if args.relabeled_train_csv:
+        df = pd.read_csv(args.relabeled_train_csv)
+        dataset = get_dataset(dataset_name=args.dataset_name, split='train', subset_path=None, transform=preprocess, dataframe=df)
+    else:
+        dataset = get_dataset(dataset_name=args.dataset_name, split='train', subset_path=args.subset_path, transform=preprocess)
     if args.training_task == 'classification':
         # Remove single-instance labels for classification
         label_counts = dataset.data['label'].value_counts()
@@ -80,10 +85,11 @@ def main():
         dataset=dataset, batch_size=int(args.batch_size), training_task=args.training_task)
 
     # If subset filename indicates a specific task, update task_list
-    subset_filename = os.path.basename(args.subset_path)
-    if 'task' in subset_filename or 'test' in subset_filename:
-        task_name = subset_filename.split('_')[0]
-        task_list = [task_name]
+    if args.subset_path is not None:
+        subset_filename = os.path.basename(args.subset_path)
+        if 'task' in subset_filename or 'test' in subset_filename:
+            task_name = subset_filename.split('_')[0]
+            task_list = [task_name]
 
     # training 
     train_engine = TrainEngine(training_task=args.training_task,

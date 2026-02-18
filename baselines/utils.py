@@ -1,12 +1,9 @@
 import numpy as np
 import os
-import clip
 import torch
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
-from all_datasets.FMoW_dataset import FMoWDataset
-from all_datasets.COOS_dataset import COOSDataset
 from all_datasets.iWildCam_dataset import iWildCamDataset
 from all_datasets.iWildCamCropped_dataset import iWildCamCroppedDataset
 from all_datasets.CivilComments_dataset import CivilCommentsDataset
@@ -73,13 +70,13 @@ def load_embedding(embedding_path:str, columns):
         embed_df[col] = [e[col] for e in embed]
     return embed_df
 
-def get_dataset(dataset_name,split,subset_path=None,transform=None):
+def get_dataset(dataset_name,split,subset_path=None,transform=None,dataframe=None):
     if dataset_name == "COOS":
         dataset = COOSDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "FMoW":
         dataset = FMoWDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "iWildCam":
-        dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform)
+        dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform, dataframe=dataframe)
     elif dataset_name == "iWildCamCropped":
         dataset = iWildCamCroppedDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "GeoDE":
@@ -122,7 +119,6 @@ def get_metrics(predictions, ground_truth):
             where=row_sums != 0,
         )
     class_avg_acc = float(per_class_acc.mean()) if per_class_acc.size else 0.0
-    pdb.set_trace()
     metrics = {
         "accuracy": float(acc),
         "class_avg_accuracy": class_avg_acc,
