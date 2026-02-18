@@ -2,17 +2,17 @@
 #SBATCH --partition=vision-beery
 #SBATCH --qos=vision-beery-main
 #SBATCH --account=vision-beery
-#SBATCH --output=slurm/slurm-%J.out
+#SBATCH --output=/data/vision/beery/scratch/hasic/projects/task_datacomp/slurm/slurm-%J.out
 #SBATCH --gres=gpu:1
 #SBATCH -c 8
 #SBATCH --mem=100G
 #SBATCH --time=1-23:00:00
-#SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
+#SBATCH --chdir=/data/vision/beery/scratch/hasic/projects/task_datacomp
 #SBATCH --requeue
 
-source /data/vision/beery/scratch/evelyn/.bashrc
+source /data/vision/beery/scratch/hasic/bashrc
 conda init
-conda activate datacomp
+conda activate unlabeled_exp
  
 
 # Assign arguments to variables
@@ -30,7 +30,7 @@ TRAINING_TASK="$9"
 echo "Running with: Dataset=$DATASET_NAME | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK"
 
 # Run the training script
-python baselines/train_on_subset.py \
+python training/train_on_subset.py \
     --dataset_name "$DATASET_NAME" \
     --subset_path "$SUBSET_PATH" \
     --outputs_path "$OUTPUTS_PATH" \

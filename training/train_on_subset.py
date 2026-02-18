@@ -6,8 +6,8 @@ Script for training and evaluating models on data subsets for various tasks (cla
 
 import os
 import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import argparse
 import json
@@ -18,9 +18,9 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from model_backbone import get_lora_model, get_model_processor, get_features
-from utils import get_dataset, get_metrics, get_train_val_dl
-from train_engine import TrainEngine
+from baselines.model_backbone import get_lora_model, get_model_processor, get_features
+from baselines.utils import get_dataset, get_metrics, get_train_val_dl
+from training.train_engine import TrainEngine
 
 # Device setup
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -128,7 +128,7 @@ def main():
             "logits": logits_dict['logits'],
             "labels": logits_dict['labels'],
             "preds": logits_dict['predictions'],
-            "mapping": value_to_index
+            "mapping": value_to_index if args.training_task == 'classification' else None
         }, os.path.join(args.outputs_path, f"{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_logits.pt"))
 
 

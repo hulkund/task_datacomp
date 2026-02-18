@@ -3,9 +3,9 @@ import torch.nn as nn
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import pandas as pd
-from train_on_subset_classification import train_classification, evaluate_classification
-from train_on_subset_regression import train_regression, evaluate_regression
-from train_on_subset_reid import train_reid, evaluate_reid
+from training.train_on_subset_classification import train_classification, evaluate_classification
+from training.train_on_subset_regression import train_regression, evaluate_regression
+from training.train_on_subset_reid import train_reid, evaluate_reid
 
 class TrainEngine():
     def __init__(self, training_task, **kwargs):

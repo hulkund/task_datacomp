@@ -2,8 +2,8 @@ import os
 import clip
 import torch
 import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import argparse
 import numpy as np
@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
-from model_backbone import get_lora_model, get_model_processor, get_features
+from baselines.model_backbone import get_lora_model, get_model_processor, get_features
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader, random_split, Subset
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print("cuda")
       
-def train_regression(model, 
+def train_regression(model,
           train_dl,
           val_dl,
           dataset_name,
@@ -30,11 +30,13 @@ def train_regression(model,
           subset_path,
           checkpoint_path,
           finetune_type: str = "full_finetune_resnet50",
-          num_epochs: int = 30, 
+          num_epochs: int = 30,
           lr: float = 0.01,
           C: float = 0.75,
           batch_size: int = 128,
-          num_classes=1):
+          num_classes=1,
+          seed=None,
+          **kwargs):
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
         pca = PCA(n_components=512)
@@ -69,10 +71,11 @@ def evaluate_regression(model,
         test_features = pca.transform(test_features)
         predictions = classifier.predict(test_features)
         metrics = {'mse':str(mean_squared_error(y_pred=predictions, y_true=test_labels))}
+        logits_dict = {"logits": torch.tensor(predictions), "labels": torch.tensor(test_labels), "predictions": torch.tensor(predictions)}
     else:
         test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, num_workers=1, shuffle=False)
-        metrics = evaluate_full_finetune(model, test_dataloader)
-    return metrics
+        metrics, logits_dict = evaluate_full_finetune(model, test_dataloader)
+    return metrics, logits_dict
 
 def evaluate_full_finetune(model, test_dataloader):
     device="cuda"
@@ -90,7 +93,8 @@ def evaluate_full_finetune(model, test_dataloader):
             predicted_all.extend(outputs.cpu().numpy())
             labels_all.extend(labels.cpu().numpy())
     metrics = {'mse':str(mean_squared_error(y_pred=predicted_all, y_true=labels_all))}
-    return metrics 
+    logits_dict = {"logits": torch.tensor(predicted_all), "labels": torch.tensor(labels_all), "predictions": torch.tensor(predicted_all)}
+    return metrics, logits_dict
 
 def train_full_finetune(model, 
                         train_dataloader, 
@@ -153,6 +157,13 @@ def train_full_finetune(model,
             patience_counter=0
             best_epoch = epoch
             best_model_wts = model.state_dict().copy()
+            torch.save({
+                "epoch": epoch,
+                "model_state": model.state_dict(),
+                "optimizer_state": optimizer.state_dict(),
+                "best_val_loss": best_val_loss,
+                "patience_counter": patience_counter
+            }, checkpoint_path)
         else:
             patience_counter+=1
         if patience_counter>=patience:

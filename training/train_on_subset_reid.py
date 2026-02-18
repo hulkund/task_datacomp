@@ -2,8 +2,8 @@ import os
 import clip
 import torch
 import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from torchvision.models import resnet50, ResNet50_Weights, resnet101, ResNet101_Weights
 
 import argparse
@@ -12,7 +12,7 @@ import torch.nn as nn
 from sklearn.linear_model import LogisticRegression
 from torch.utils.data import DataLoader, random_split, Subset
 from sklearn.model_selection import train_test_split
-from model_backbone import get_lora_model, get_model_processor, get_features
+from baselines.model_backbone import get_lora_model, get_model_processor, get_features
 import torch.optim as optim
 import torchvision.transforms as T
 import torch.nn.functional as F
@@ -21,7 +21,7 @@ import itertools
 from pytorch_metric_learning import losses
 import timm
 # from utils import get_dataset, get_metrics, get_train_val_dl
-from utils import get_metrics
+from baselines.utils import get_metrics
 import pandas as pd
 import pdb
 
@@ -43,7 +43,9 @@ def train_reid(model,
           num_epochs: int = 30, 
           lr: float = 0.01,
           C: float = 0.75,
-          batch_size: int = 128):
+          batch_size: int = 128,
+          seed=None,
+          **kwargs):
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
         classifier = LogisticRegression(random_state=0, C=0.75, max_iter=1000, verbose=1)

@@ -8,7 +8,7 @@ sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
 from all_datasets.FMoW_dataset import FMoWDataset
 from all_datasets.COOS_dataset import COOSDataset
 from all_datasets.iWildCam_dataset import iWildCamDataset
-from all_datasets.iWildCamCropped_dataset import iWildCamCroppedDataset
+# from all_datasets.iWildCamCropped_dataset import iWildCamCroppedDataset
 from all_datasets.CivilComments_dataset import CivilCommentsDataset
 from all_datasets.GeoDE_dataset import GeoDEDataset
 from all_datasets.AutoArborist_dataset import AutoArboristDataset
@@ -73,6 +73,17 @@ def load_embedding(embedding_path:str, columns):
         embed_df[col] = [e[col] for e in embed]
     return embed_df
 
+def get_threshold(embedding_path: str, key: str, fraction: float):
+    """Compute a threshold from a fraction of top values in the embedding column.
+
+    Returns:
+        tuple: (threshold, embed_df)
+    """
+    embed_df = load_embedding(embedding_path, [key, "uid"])
+    n = int(len(embed_df) * fraction)
+    threshold = -np.sort(-embed_df[key].values)[n]
+    return threshold, embed_df
+
 def get_dataset(dataset_name,split,subset_path=None,transform=None):
     if dataset_name == "COOS":
         dataset = COOSDataset(split=split, subset_path=subset_path, transform=transform)
@@ -122,7 +133,7 @@ def get_metrics(predictions, ground_truth):
             where=row_sums != 0,
         )
     class_avg_acc = float(per_class_acc.mean()) if per_class_acc.size else 0.0
-    pdb.set_trace()
+    # pdb.set_trace()
     metrics = {
         "accuracy": float(acc),
         "class_avg_accuracy": class_avg_acc,

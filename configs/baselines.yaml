@@ -33,3 +33,8 @@ tsds:
 gradmatch:
     task: "tasks"
     fraction_list: [0.25]
+
+zcore:
+    task: "all"
+    fraction_list: [0.25]
+    extra_args: "--n_sample 1000000"

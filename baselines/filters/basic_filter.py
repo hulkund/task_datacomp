@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import fasttext
+from typing import Any
 
 
 def load_uids_with_basic_filter_helper(embedding_path) -> np.ndarray:

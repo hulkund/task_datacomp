@@ -1,4 +1,4 @@
-from utils import load_embedding
+from baselines.filters.utils import load_embedding
 import numpy as np
 import pandas as pd
 
