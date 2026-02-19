@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader, random_split, Subset
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print("cuda")
       
-def train_regression(model, 
+def train_regression(model,
           train_dl,
           val_dl,
           dataset_name,
@@ -29,12 +29,13 @@ def train_regression(model,
           subset_path,
           checkpoint_path,
           finetune_type: str = "full_finetune_resnet50",
-          num_epochs: int = 30, 
+          num_epochs: int = 30,
           lr: float = 0.01,
           C: float = 0.75,
           batch_size: int = 128,
           num_classes=1,
-          seed: int = 42):
+          seed: int = 42,
+          wandb_run=None):
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
         pca = PCA(n_components=512)
@@ -47,13 +48,14 @@ def train_regression(model,
             model.fc = nn.Linear(model.fc.in_features, num_classes)        
         criterion = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=lr)
-        model = train_full_finetune(model=model, 
-                        train_dataloader=train_dl, 
-                        val_dataloader=val_dl, 
-                        num_epochs=num_epochs, 
-                        criterion=criterion, 
+        model = train_full_finetune(model=model,
+                        train_dataloader=train_dl,
+                        val_dataloader=val_dl,
+                        num_epochs=num_epochs,
+                        criterion=criterion,
                         optimizer=optimizer,
-                        checkpoint_path=checkpoint_path)
+                        checkpoint_path=checkpoint_path,
+                        wandb_run=wandb_run)
     return model
 
 def evaluate_regression(model,
@@ -92,14 +94,15 @@ def evaluate_full_finetune(model, test_dataloader):
     metrics = {'mse':str(mean_squared_error(y_pred=predicted_all, y_true=labels_all))}
     return metrics 
 
-def train_full_finetune(model, 
-                        train_dataloader, 
-                        val_dataloader, 
-                        num_epochs, 
-                        criterion, 
+def train_full_finetune(model,
+                        train_dataloader,
+                        val_dataloader,
+                        num_epochs,
+                        criterion,
                         optimizer,
                         checkpoint_path,
-                        patience=5):
+                        patience=5,
+                        wandb_run=None):
     device='cuda'
     model.to(device)
     best_val_loss=np.inf
@@ -159,6 +162,12 @@ def train_full_finetune(model,
             print(f"early stopping at epoch {epoch}")
             break
         print(f"Epoch {epoch + 1} validation loss: {val_loss / len(val_dataloader):.3f}")
+        if wandb_run:
+            wandb_run.log({
+                "train_loss": running_loss / len(train_dataloader),
+                "val_loss": val_loss / len(val_dataloader),
+                "epoch": epoch,
+            })
     model.load_state_dict(best_model_wts)
     return model         
 

@@ -24,12 +24,14 @@ task-datacomp/
 │   └── run_new_train.sh   # SLURM submission script
 ├── configs/
 │   ├── datasets.yaml      # Dataset paths and task definitions
-│   └── subset_baselines.yaml  # Baseline method configs and parameters
+│   ├── subset_baselines.yaml  # Baseline method configs and parameters
+│   └── experiments.yaml   # Experiment sweep definitions for batch runs
 ├── DeepCore/              # GradMatch core selection
 ├── otdd/                  # Optimal transport dataset distance
 ├── trust/                 # Trust metrics and scoring
 ├── baselines.py           # Main CLI entry point for filters
-├── make_subsets_with_config.py  # Full pipeline runner
+├── make_subsets_with_config.py       # Full pipeline runner (single sweep)
+├── make_config_experiments.py        # Batch experiment runner (multiple sweeps, dry-run support)
 └── requirements.txt
 ```
 
@@ -37,8 +39,9 @@ task-datacomp/
 
 1. **Apply a filter**: `python baselines.py --name <filter> --embedding_path <path> --save_path <output> --fraction <frac>`
 2. **Train on subset**: `python training/train_on_subset.py --dataset_name <name> --subset_path <path> --dataset_config configs/datasets.yaml --finetune_type <type> --training_task <task> --outputs_path <path> --checkpoint_path <path>`
-3. **Full pipeline**: `python make_subsets_with_config.py`
-4. **SLURM batch**: `sbatch training/run_new_train.sh <dataset> <subset_path> <output> <config> <lr> <finetune_type> <batch_size> <checkpoint> <task>`
+3. **Full pipeline (single sweep)**: `python make_subsets_with_config.py`
+4. **Batch experiments (multiple sweeps)**: `python make_config_experiments.py --experiment_config configs/experiments.yaml`
+5. **SLURM batch**: `sbatch training/run_new_train.sh <dataset> <subset_path> <output> <config> <lr> <finetune_type> <batch_size> <checkpoint> <task>`
 
 ## Filter Names
 
@@ -86,6 +89,21 @@ python baselines.py --name clip_score --embedding_path <path> --save_path <outpu
 python training/train_on_subset.py --dataset_name iWildCam --subset_path <path> \
     --dataset_config configs/datasets.yaml --finetune_type lora_finetune_vit \
     --training_task classification --outputs_path <path> --checkpoint_path <path>
+
+# Batch experiments from a sweep config (preview without submitting)
+python make_config_experiments.py --experiment_config configs/experiments.yaml --dry-run
+
+# Submit only filter jobs, then only training jobs (two-stage workflow)
+python make_config_experiments.py --experiment_config configs/experiments.yaml --filter-only
+python make_config_experiments.py --experiment_config configs/experiments.yaml --train-only
+
+# Quick CLI one-off (no config file needed)
+python make_config_experiments.py \
+    --dataset_list iWildCam GeoDE --baselines_list clip_score no_filter \
+    --finetune_list lora_finetune_vit --dry-run
+
+# Cap total SLURM submissions
+python make_config_experiments.py --experiment_config configs/experiments.yaml --max-jobs 50
 ```
 
 ## Environment
