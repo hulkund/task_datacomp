@@ -82,20 +82,12 @@ def get_threshold(embedding_path: str, key: str, fraction: float):
     return threshold, embed_df
 
 def get_dataset(dataset_name,split,subset_path=None,transform=None,dataframe=None):
-    if dataset_name == "COOS":
-        dataset = COOSDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "FMoW":
-        dataset = FMoWDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "iWildCam":
+    if dataset_name == "iWildCam":
         dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform, dataframe=dataframe)
-    elif dataset_name == "iWildCamCropped":
-        dataset = iWildCamCroppedDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "GeoDE":
         dataset = GeoDEDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "AutoArborist":
         dataset = AutoArboristDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "CropHarvest":
-        dataset = CropHarvestDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "SelfDrivingCar":
         dataset = SelfDrivingCarDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "FishDetection":
@@ -130,10 +122,6 @@ def get_metrics(predictions, ground_truth):
             where=row_sums != 0,
         )
     class_avg_acc = float(per_class_acc.mean()) if per_class_acc.size else 0.0
-<<<<<<< HEAD
-    # pdb.set_trace()
-=======
->>>>>>> master
     metrics = {
         "accuracy": float(acc),
         "class_avg_accuracy": class_avg_acc,

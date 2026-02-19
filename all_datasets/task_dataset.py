@@ -9,12 +9,7 @@ import yaml
 from PIL import Image
 import pandas as pd
 import sys
-<<<<<<< HEAD
-sys.path.append("../")
-sys.path.append("/data/vision/beery/scratch/hasic/task-datacomp/")
-=======
 os.chdir('/data/vision/beery/scratch/neha/task-datacomp/') 
->>>>>>> master
 
 
 with open('configs/datasets.yaml', 'r') as file:

@@ -10,11 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
-<<<<<<< HEAD
-from baselines.model_backbone import get_lora_model, get_model_processor, get_features
-=======
 from training.model_backbone import get_lora_model, get_model_processor, get_features
->>>>>>> master
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -38,13 +34,8 @@ def train_regression(model,
           C: float = 0.75,
           batch_size: int = 128,
           num_classes=1,
-<<<<<<< HEAD
-          seed=None,
-          **kwargs):
-=======
           seed: int = 42,
           wandb_run=None):
->>>>>>> master
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
         pca = PCA(n_components=512)
@@ -60,6 +51,7 @@ def train_regression(model,
         model = train_full_finetune(model=model,
                         train_dataloader=train_dl,
                         val_dataloader=val_dl,
+                        dataset_name=dataset_name,
                         num_epochs=num_epochs,
                         criterion=criterion,
                         optimizer=optimizer,
@@ -108,6 +100,7 @@ def evaluate_full_finetune(model, test_dataloader):
 def train_full_finetune(model,
                         train_dataloader,
                         val_dataloader,
+                        dataset_name,
                         num_epochs,
                         criterion,
                         optimizer,
@@ -182,9 +175,9 @@ def train_full_finetune(model,
         print(f"Epoch {epoch + 1} validation loss: {val_loss / len(val_dataloader):.3f}")
         if wandb_run:
             wandb_run.log({
-                "train_loss": running_loss / len(train_dataloader),
-                "val_loss": val_loss / len(val_dataloader),
-                "epoch": epoch,
+                f"{dataset_name}/train_loss": running_loss / len(train_dataloader),
+                f"{dataset_name}/val_loss": val_loss / len(val_dataloader),
+                f"{dataset_name}/epoch": epoch,
             })
     model.load_state_dict(best_model_wts)
     return model         

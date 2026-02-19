@@ -18,16 +18,10 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-<<<<<<< HEAD
-from baselines.model_backbone import get_lora_model, get_model_processor, get_features
-from baselines.utils import get_dataset, get_metrics, get_train_val_dl
-from training.train_engine import TrainEngine
-=======
 from training.model_backbone import get_lora_model, get_model_processor, get_features
 from baselines.utils import get_dataset, get_metrics, get_train_val_dl
 from train_engine import TrainEngine
 import wandb
->>>>>>> master
 
 # Device setup
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -161,7 +155,7 @@ def main():
         # Save metrics and logits
         metrics['subset_size'] = len(train_dataset)
         if wandb_run:
-            wandb_run.log({f"{task_name}/{k}": v for k, v in metrics.items()})
+            wandb_run.log({f"{args.dataset_name}/{task_name}/{k}": v for k, v in metrics.items()})
         metrics_path = os.path.join(args.outputs_path, f"{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_metrics.json")
         with open(metrics_path, "w") as json_file:
             json.dump(metrics, json_file, indent=4)
