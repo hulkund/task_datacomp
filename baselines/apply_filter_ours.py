@@ -37,6 +37,7 @@ from baselines.filters.text_alignment_filter import load_uids_with_text_alignmen
 from baselines.filters.tsds_filter import load_uids_with_tsds
 from baselines.filters.zcore_filter import load_uids_with_zcore
 from baselines.filters.utils import load_uids
+from filters.prism_filter import load_uids_with_partition_strategy
 
 
 

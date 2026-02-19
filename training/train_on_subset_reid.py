@@ -1,5 +1,4 @@
 import os
-import clip
 import torch
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -31,7 +30,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print("cuda")
 
     
-def train_reid(model, 
+def train_reid(model,
           train_dl,
           val_dl,
           dataset_name,
@@ -40,12 +39,17 @@ def train_reid(model,
           num_classes,
           checkpoint_path,
           finetune_type: str = "full_finetune",
-          num_epochs: int = 30, 
+          num_epochs: int = 30,
           lr: float = 0.01,
           C: float = 0.75,
           batch_size: int = 128,
+<<<<<<< HEAD
           seed=None,
           **kwargs):
+=======
+          seed: int = 42,
+          wandb_run=None):
+>>>>>>> master
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
         classifier = LogisticRegression(random_state=0, C=0.75, max_iter=1000, verbose=1)
@@ -61,13 +65,14 @@ def train_reid(model,
                                         embedding_size=embedding_size) # NEED TO FIX THIS
         params = itertools.chain(model.parameters(), criterion.parameters())
         optimizer = torch.optim.SGD(params=params, lr=0.001, momentum=0.9, weight_decay=0.0)
-        model = train_full_finetune(model=model, 
+        model = train_full_finetune(model=model,
                                     checkpoint_path=checkpoint_path,
                                     train_dataloader=train_dl,
-                                    val_dataloader=val_dl, 
-                                    num_epochs=num_epochs, 
-                                    criterion=criterion, 
-                                    optimizer=optimizer)
+                                    val_dataloader=val_dl,
+                                    num_epochs=num_epochs,
+                                    criterion=criterion,
+                                    optimizer=optimizer,
+                                    wandb_run=wandb_run)
     return model
 
 def evaluate_reid(model,
@@ -128,14 +133,15 @@ def evaluate_full_finetune(model,
     metrics['accuracy']=correct / total
     return metrics, logits_dict
 
-def train_full_finetune(model, 
-                        train_dataloader, 
-                        val_dataloader, 
+def train_full_finetune(model,
+                        train_dataloader,
+                        val_dataloader,
                         checkpoint_path,
-                        num_epochs, 
-                        criterion, 
+                        num_epochs,
+                        criterion,
                         optimizer,
-                        patience=5):
+                        patience=5,
+                        wandb_run=None):
     device='cuda'
     model.to(device)
 
@@ -199,8 +205,13 @@ def train_full_finetune(model,
         if patience_counter>=patience:
             print(f"early stopping at epoch {epoch}")
             break
-        print(f"Epoch {epoch + 1} validation loss: {val_loss / len(val_dataloader):.3f}, ")
-        #f"accuracy: {100 * correct / total:.2f}%")
+        print(f"Epoch {epoch + 1} validation loss: {val_loss / len(val_dataloader):.3f}")
+        if wandb_run:
+            wandb_run.log({
+                "train_loss": running_loss / len(train_dataloader),
+                "val_loss": val_loss / len(val_dataloader),
+                "epoch": epoch,
+            })
     model.load_state_dict(best_model_wts)
     return model
 

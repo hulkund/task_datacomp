@@ -1,5 +1,4 @@
 import os
-import clip
 import torch
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -11,7 +10,11 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import pandas as pd
+<<<<<<< HEAD
 from baselines.model_backbone import get_lora_model, get_model_processor, get_features
+=======
+from training.model_backbone import get_lora_model, get_model_processor, get_features
+>>>>>>> master
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -35,8 +38,13 @@ def train_regression(model,
           C: float = 0.75,
           batch_size: int = 128,
           num_classes=1,
+<<<<<<< HEAD
           seed=None,
           **kwargs):
+=======
+          seed: int = 42,
+          wandb_run=None):
+>>>>>>> master
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
         pca = PCA(n_components=512)
@@ -49,13 +57,14 @@ def train_regression(model,
             model.fc = nn.Linear(model.fc.in_features, num_classes)        
         criterion = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=lr)
-        model = train_full_finetune(model=model, 
-                        train_dataloader=train_dl, 
-                        val_dataloader=val_dl, 
-                        num_epochs=num_epochs, 
-                        criterion=criterion, 
+        model = train_full_finetune(model=model,
+                        train_dataloader=train_dl,
+                        val_dataloader=val_dl,
+                        num_epochs=num_epochs,
+                        criterion=criterion,
                         optimizer=optimizer,
-                        checkpoint_path=checkpoint_path)
+                        checkpoint_path=checkpoint_path,
+                        wandb_run=wandb_run)
     return model
 
 def evaluate_regression(model,
@@ -96,14 +105,15 @@ def evaluate_full_finetune(model, test_dataloader):
     logits_dict = {"logits": torch.tensor(predicted_all), "labels": torch.tensor(labels_all), "predictions": torch.tensor(predicted_all)}
     return metrics, logits_dict
 
-def train_full_finetune(model, 
-                        train_dataloader, 
-                        val_dataloader, 
-                        num_epochs, 
-                        criterion, 
+def train_full_finetune(model,
+                        train_dataloader,
+                        val_dataloader,
+                        num_epochs,
+                        criterion,
                         optimizer,
                         checkpoint_path,
-                        patience=5):
+                        patience=5,
+                        wandb_run=None):
     device='cuda'
     model.to(device)
     best_val_loss=np.inf
@@ -170,6 +180,12 @@ def train_full_finetune(model,
             print(f"early stopping at epoch {epoch}")
             break
         print(f"Epoch {epoch + 1} validation loss: {val_loss / len(val_dataloader):.3f}")
+        if wandb_run:
+            wandb_run.log({
+                "train_loss": running_loss / len(train_dataloader),
+                "val_loss": val_loss / len(val_dataloader),
+                "epoch": epoch,
+            })
     model.load_state_dict(best_model_wts)
     return model         
 

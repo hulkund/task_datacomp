@@ -18,9 +18,16 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+<<<<<<< HEAD
 from baselines.model_backbone import get_lora_model, get_model_processor, get_features
 from baselines.utils import get_dataset, get_metrics, get_train_val_dl
 from training.train_engine import TrainEngine
+=======
+from training.model_backbone import get_lora_model, get_model_processor, get_features
+from baselines.utils import get_dataset, get_metrics, get_train_val_dl
+from train_engine import TrainEngine
+import wandb
+>>>>>>> master
 
 # Device setup
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -33,9 +40,9 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Train and evaluate model on subset.")
     parser.add_argument("--dataset_name", type=str, required=True,
-                        choices=["FMoW","COOS","iWildCam","GeoDE","CropHarvest","AutoArborist","SelfDrivingCar","ReID"],
+                        choices=["iWildCam","GeoDE","CropHarvest","AutoArborist","SelfDrivingCar","ReID"],
                         default="iWildCam", help="Dataset name")
-    parser.add_argument("--subset_path", type=str, required=True, help="subset uid path")
+    parser.add_argument("--subset_path", type=str, required=False, help="subset uid path")
     parser.add_argument("--dataset_config", type=str, required=True, help="dataset config")
     parser.add_argument("--lr", type=float, required=False, default=0.01, help="Learning rate")
     parser.add_argument("--finetune_type", type=str, required=True,
@@ -43,13 +50,39 @@ def main():
                         help="Type of finetuning")
     parser.add_argument('--outputs_path', type=str, required=True)
     parser.add_argument("--batch_size", type=int, required=False, default=32)
-    parser.add_argument("--num_epochs", type=int, required=False, default=50, help="Number of epochs")
+    parser.add_argument("--num_epochs", type=int, required=False, default=100, help="Number of epochs")
     parser.add_argument("--checkpoint_path", type=str, required=True, help="Path to save model")
     parser.add_argument("--training_task", type=str, required=True,
                         choices=["classification","regression","detection","reid"])
     parser.add_argument("--seed", type=int, default=42, help="seed for reproducibility")
     parser.add_argument("--only_evaluate", action="store_true", default=False, help="Whether to only evaluate the model")
+    parser.add_argument("--relabeled_train_csv", type=str, required=False, default=None, help="Path to custom train CSV")
+    parser.add_argument("--wandb_project", type=str, required=False, default=None, help="Wandb project name (enables wandb logging)")
+    parser.add_argument("--wandb_entity", type=str, required=False, default=None, help="Wandb entity/team name")
+    parser.add_argument("--wandb_group", type=str, required=False, default=None, help="Wandb group name for organizing related runs")
+    parser.add_argument("--wandb_run_name", type=str, required=False, default=None, help="Wandb run name")
     args = parser.parse_args()
+
+    # Initialize wandb if project name is provided
+    wandb_run = None
+    if args.wandb_project:
+        run_name = args.wandb_run_name or f"{args.dataset_name}/{args.finetune_type}/lr={args.lr}"
+        wandb_run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            group=args.wandb_group,
+            name=run_name,
+            config={
+                "dataset_name": args.dataset_name,
+                "lr": args.lr,
+                "batch_size": args.batch_size,
+                "num_epochs": args.num_epochs,
+                "finetune_type": args.finetune_type,
+                "training_task": args.training_task,
+                "subset_path": args.subset_path,
+                "seed": args.seed,
+            },
+        )
 
     # Get model and preprocessing
     model, preprocess = get_model_processor(args.finetune_type)
@@ -59,8 +92,12 @@ def main():
         dataset_config = yaml.safe_load(f)
     task_list = dataset_config[args.dataset_name]['task_list']
 
-    # Load and preprocess training dataset
-    dataset = get_dataset(dataset_name=args.dataset_name, split='train', subset_path=args.subset_path, transform=preprocess)
+    # Load and preprocess training dataset if not relabeled CSV provided
+    if args.relabeled_train_csv:
+        df = pd.read_csv(args.relabeled_train_csv)
+        dataset = get_dataset(dataset_name=args.dataset_name, split='train', subset_path=None, transform=preprocess, dataframe=df)
+    else:
+        dataset = get_dataset(dataset_name=args.dataset_name, split='train', subset_path=args.subset_path, transform=preprocess)
     if args.training_task == 'classification':
         # Remove single-instance labels for classification
         label_counts = dataset.data['label'].value_counts()
@@ -80,10 +117,11 @@ def main():
         dataset=dataset, batch_size=int(args.batch_size), training_task=args.training_task)
 
     # If subset filename indicates a specific task, update task_list
-    subset_filename = os.path.basename(args.subset_path)
-    if 'task' in subset_filename or 'test' in subset_filename:
-        task_name = subset_filename.split('_')[0]
-        task_list = [task_name]
+    if args.subset_path is not None:
+        subset_filename = os.path.basename(args.subset_path)
+        if 'task' in subset_filename or 'test' in subset_filename:
+            task_name = subset_filename.split('_')[0]
+            task_list = [task_name]
 
     # training 
     train_engine = TrainEngine(training_task=args.training_task,
@@ -99,7 +137,8 @@ def main():
                               subset_path=args.subset_path,
                               num_classes=num_classes,
                               checkpoint_path=args.checkpoint_path,
-                              seed=args.seed)
+                              seed=args.seed,
+                              wandb_run=wandb_run)
     if not args.only_evaluate:
         model = train_engine.train()
 
@@ -121,6 +160,8 @@ def main():
         metrics, logits_dict = train_engine.evaluate(test_dataset=test_dataset, task_name=task_name)
         # Save metrics and logits
         metrics['subset_size'] = len(train_dataset)
+        if wandb_run:
+            wandb_run.log({f"{task_name}/{k}": v for k, v in metrics.items()})
         metrics_path = os.path.join(args.outputs_path, f"{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_metrics.json")
         with open(metrics_path, "w") as json_file:
             json.dump(metrics, json_file, indent=4)
@@ -130,6 +171,9 @@ def main():
             "preds": logits_dict['predictions'],
             "mapping": value_to_index if args.training_task == 'classification' else None
         }, os.path.join(args.outputs_path, f"{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_logits.pt"))
+
+    if wandb_run:
+        wandb_run.finish()
 
 
 if __name__ == "__main__":

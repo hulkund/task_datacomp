@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split, Subset
 from sklearn.linear_model import LogisticRegression
 from tqdm import tqdm
-from baselines.model_backbone import get_lora_model, get_model_processor, get_features
+from training.model_backbone import get_lora_model, get_model_processor, get_features
 from baselines.utils import get_dataset, get_metrics, get_train_val_dl
 import yaml
 import subprocess
@@ -22,7 +22,7 @@ import time
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {DEVICE}")
      
-def train_classification(model, 
+def train_classification(model,
           train_dl,
           val_dl,
           dataset_name,
@@ -31,11 +31,12 @@ def train_classification(model,
           num_classes,
           checkpoint_path,
           finetune_type: str = "full_finetune",
-          num_epochs: int = 30, 
+          num_epochs: int = 30,
           lr: float = 0.01,
           C: float = 0.75,
           batch_size: int = 128,
-          seed: int = 42):
+          seed: int = 42,
+          wandb_run=None):
     
     if finetune_type=="linear_probe":
         train_features, train_labels = get_features(dataset_name=dataset_name, subset_path=subset_path, split='train')
@@ -47,13 +48,14 @@ def train_classification(model,
             model.fc = nn.Linear(model.fc.in_features, num_classes)
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=lr)
-        model = train_full_finetune(model=model, 
+        model = train_full_finetune(model=model,
                                     train_dataloader=train_dl,
-                                    val_dataloader=val_dl, 
-                                    num_epochs=num_epochs, 
-                                    criterion=criterion, 
+                                    val_dataloader=val_dl,
+                                    num_epochs=num_epochs,
+                                    criterion=criterion,
                                     optimizer=optimizer,
-                                    checkpoint_path=checkpoint_path)
+                                    checkpoint_path=checkpoint_path,
+                                    wandb_run=wandb_run)
     return model
 
 
@@ -160,14 +162,15 @@ def evaluate_full_finetune(model, test_dataloader, log_gpu_every=10):
 
     return metrics, {"logits": logits_tensor, "labels": labels_tensor, "predictions": pred_tensor}
 
-def train_full_finetune(model, 
-                        train_dataloader, 
-                        val_dataloader, 
-                        num_epochs, 
-                        criterion, 
+def train_full_finetune(model,
+                        train_dataloader,
+                        val_dataloader,
+                        num_epochs,
+                        criterion,
                         optimizer,
                         checkpoint_path,
-                        patience=5):
+                        patience=5,
+                        wandb_run=None):
     device='cuda'
     model.to(device)
 
@@ -232,5 +235,13 @@ def train_full_finetune(model,
         if patience_counter>=patience:
             print(f"early stopping at epoch {epoch}")
             break
-        print(f"Epoch {epoch} validation loss: {val_loss}, "f"accuracy: {100 * correct / total:.2f}%")
+        val_accuracy = 100 * correct / total if total else 0.0
+        print(f"Epoch {epoch} validation loss: {val_loss}, accuracy: {val_accuracy:.2f}%")
+        if wandb_run:
+            wandb_run.log({
+                "train_loss": running_loss / len(train_dataloader),
+                "val_loss": val_loss / len(val_dataloader),
+                "val_accuracy": val_accuracy,
+                "epoch": epoch,
+            })
     return model

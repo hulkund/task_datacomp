@@ -39,7 +39,7 @@ class TrainEngine():
             # Filter out kwargs not used in evaluation
             eval_args = {
                 k: v for k, v in self.kwargs.items()
-                if k in ['model', 'dataset_name','preprocess','finetune_type','batch_size']  # adjust this list per your actual function
+                if k in ['model', 'dataset_name','preprocess','finetune_type','batch_size','wandb_run']  # adjust this list per your actual function
             }
             print(eval_args)
             return task_map[self.training_task](test_dataset=test_dataset, task_name=task_name, **eval_args)
