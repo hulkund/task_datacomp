@@ -1,8 +1,8 @@
 import os
 import torch
 import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import argparse
 import numpy as np
@@ -51,6 +51,7 @@ def train_regression(model,
         model = train_full_finetune(model=model,
                         train_dataloader=train_dl,
                         val_dataloader=val_dl,
+                        dataset_name=dataset_name,
                         num_epochs=num_epochs,
                         criterion=criterion,
                         optimizer=optimizer,
@@ -71,10 +72,11 @@ def evaluate_regression(model,
         test_features = pca.transform(test_features)
         predictions = classifier.predict(test_features)
         metrics = {'mse':str(mean_squared_error(y_pred=predictions, y_true=test_labels))}
+        logits_dict = {"logits": torch.tensor(predictions), "labels": torch.tensor(test_labels), "predictions": torch.tensor(predictions)}
     else:
         test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, num_workers=1, shuffle=False)
-        metrics = evaluate_full_finetune(model, test_dataloader)
-    return metrics
+        metrics, logits_dict = evaluate_full_finetune(model, test_dataloader)
+    return metrics, logits_dict
 
 def evaluate_full_finetune(model, test_dataloader):
     device="cuda"
@@ -92,11 +94,13 @@ def evaluate_full_finetune(model, test_dataloader):
             predicted_all.extend(outputs.cpu().numpy())
             labels_all.extend(labels.cpu().numpy())
     metrics = {'mse':str(mean_squared_error(y_pred=predicted_all, y_true=labels_all))}
-    return metrics 
+    logits_dict = {"logits": torch.tensor(predicted_all), "labels": torch.tensor(labels_all), "predictions": torch.tensor(predicted_all)}
+    return metrics, logits_dict
 
 def train_full_finetune(model,
                         train_dataloader,
                         val_dataloader,
+                        dataset_name,
                         num_epochs,
                         criterion,
                         optimizer,
@@ -156,6 +160,13 @@ def train_full_finetune(model,
             patience_counter=0
             best_epoch = epoch
             best_model_wts = model.state_dict().copy()
+            torch.save({
+                "epoch": epoch,
+                "model_state": model.state_dict(),
+                "optimizer_state": optimizer.state_dict(),
+                "best_val_loss": best_val_loss,
+                "patience_counter": patience_counter
+            }, checkpoint_path)
         else:
             patience_counter+=1
         if patience_counter>=patience:
@@ -164,9 +175,9 @@ def train_full_finetune(model,
         print(f"Epoch {epoch + 1} validation loss: {val_loss / len(val_dataloader):.3f}")
         if wandb_run:
             wandb_run.log({
-                "train_loss": running_loss / len(train_dataloader),
-                "val_loss": val_loss / len(val_dataloader),
-                "epoch": epoch,
+                f"{dataset_name}/train_loss": running_loss / len(train_dataloader),
+                f"{dataset_name}/val_loss": val_loss / len(val_dataloader),
+                f"{dataset_name}/epoch": epoch,
             })
     model.load_state_dict(best_model_wts)
     return model         

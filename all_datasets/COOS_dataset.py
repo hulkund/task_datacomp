@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 import pandas as pd
 
-root_path='/data/vision/beery/scratch/neha/task-datacomp/all_datasets/COOS/data/'
+root_path='/data/vision/beery/scratch/hasic/task-datacomp/all_datasets/COOS/data/'
 FILEPATHS = {'test1':'test1_data.h5',
              'test2':'test2_data.h5',
              'test3':'test3_data.h5',

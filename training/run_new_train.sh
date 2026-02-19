@@ -9,8 +9,7 @@
 #SBATCH --time=15:00:00
 #SBATCH --requeue
 
-source /data/vision/beery/scratch/neha/bash.rc
-conda init
+source /data/vision/beery/scratch/neha/.bashrc
 conda activate datacomp
 
 # Assign arguments to variables
@@ -23,27 +22,38 @@ FINETUNE_TYPE="$6"
 BATCH_SIZE="$7"
 CHECKPOINT_PATH="$8"
 TRAINING_TASK="$9"
-WANDB_PROJECT="${10}"
-WANDB_ENTITY="${11}"
-WANDB_GROUP="${12}"
-WANDB_RUN_NAME="${13}"
-NUM_EPOCHS="${14}"
+
+if [ "$#" -ge 15 ] && [ -z "${10}" ]; then
+    # Backward-compatible parsing for legacy callers that inserted an extra "".
+    WANDB_PROJECT="${11}"
+    WANDB_ENTITY="${12}"
+    WANDB_GROUP="${13}"
+    WANDB_RUN_NAME="${14}"
+    NUM_EPOCHS="${15}"
+else
+    WANDB_PROJECT="${10:-}"
+    WANDB_ENTITY="${11:-}"
+    WANDB_GROUP="${12:-}"
+    WANDB_RUN_NAME="${13:-}"
+    NUM_EPOCHS="${14:-}"
+fi
 
 # One-liner echo for debugging
-echo "Running with: Dataset=$DATASET_NAME | Train_csv_custom=$RELABELED_TRAIN_CSV | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK | Wandb_project=$WANDB_PROJECT | Wandb_entity=$WANDB_ENTITY | Num_epochs=$NUM_EPOCHS"
+echo "Running with: Dataset=$DATASET_NAME | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK | Wandb_project=$WANDB_PROJECT | Wandb_entity=$WANDB_ENTITY | Num_epochs=$NUM_EPOCHS"
 
 # Build optional wandb arguments
-WANDB_ARGS=""
+# Build optional wandb arguments as array
+WANDB_ARGS=()
 if [ -n "$WANDB_PROJECT" ]; then
-    WANDB_ARGS="--wandb_project $WANDB_PROJECT"
+    WANDB_ARGS+=(--wandb_project "$WANDB_PROJECT")
     if [ -n "$WANDB_ENTITY" ]; then
-        WANDB_ARGS="$WANDB_ARGS --wandb_entity $WANDB_ENTITY"
+        WANDB_ARGS+=(--wandb_entity "$WANDB_ENTITY")
     fi
     if [ -n "$WANDB_GROUP" ]; then
-        WANDB_ARGS="$WANDB_ARGS --wandb_group $WANDB_GROUP"
+        WANDB_ARGS+=(--wandb_group "$WANDB_GROUP")
     fi
     if [ -n "$WANDB_RUN_NAME" ]; then
-        WANDB_ARGS="$WANDB_ARGS --wandb_run_name $WANDB_RUN_NAME"
+        WANDB_ARGS+=(--wandb_run_name "$WANDB_RUN_NAME")
     fi
 fi
 
@@ -59,4 +69,4 @@ python training/train_on_subset.py \
     --checkpoint_path "$CHECKPOINT_PATH" \
     --training_task "$TRAINING_TASK" \
     ${NUM_EPOCHS:+--num_epochs "$NUM_EPOCHS"} \
-    $WANDB_ARGS
+    "${WANDB_ARGS[@]}"

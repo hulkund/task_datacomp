@@ -5,7 +5,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
 from all_datasets.iWildCam_dataset import iWildCamDataset
-from all_datasets.iWildCamCropped_dataset import iWildCamCroppedDataset
+# from all_datasets.iWildCamCropped_dataset import iWildCamCroppedDataset
 from all_datasets.CivilComments_dataset import CivilCommentsDataset
 from all_datasets.GeoDE_dataset import GeoDEDataset
 from all_datasets.AutoArborist_dataset import AutoArboristDataset
@@ -70,21 +70,24 @@ def load_embedding(embedding_path:str, columns):
         embed_df[col] = [e[col] for e in embed]
     return embed_df
 
+def get_threshold(embedding_path: str, key: str, fraction: float):
+    """Compute a threshold from a fraction of top values in the embedding column.
+
+    Returns:
+        tuple: (threshold, embed_df)
+    """
+    embed_df = load_embedding(embedding_path, [key, "uid"])
+    n = int(len(embed_df) * fraction)
+    threshold = -np.sort(-embed_df[key].values)[n]
+    return threshold, embed_df
+
 def get_dataset(dataset_name,split,subset_path=None,transform=None,dataframe=None):
-    if dataset_name == "COOS":
-        dataset = COOSDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "FMoW":
-        dataset = FMoWDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "iWildCam":
+    if dataset_name == "iWildCam":
         dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform, dataframe=dataframe)
-    elif dataset_name == "iWildCamCropped":
-        dataset = iWildCamCroppedDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "GeoDE":
         dataset = GeoDEDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "AutoArborist":
         dataset = AutoArboristDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "CropHarvest":
-        dataset = CropHarvestDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "SelfDrivingCar":
         dataset = SelfDrivingCarDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "FishDetection":

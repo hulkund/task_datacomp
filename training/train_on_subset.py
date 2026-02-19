@@ -6,8 +6,8 @@ Script for training and evaluating models on data subsets for various tasks (cla
 
 import os
 import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import argparse
 import json
@@ -155,7 +155,7 @@ def main():
         # Save metrics and logits
         metrics['subset_size'] = len(train_dataset)
         if wandb_run:
-            wandb_run.log({f"{task_name}/{k}": v for k, v in metrics.items()})
+            wandb_run.log({f"{args.dataset_name}/{task_name}/{k}": v for k, v in metrics.items()})
         metrics_path = os.path.join(args.outputs_path, f"{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_metrics.json")
         with open(metrics_path, "w") as json_file:
             json.dump(metrics, json_file, indent=4)
@@ -163,7 +163,7 @@ def main():
             "logits": logits_dict['logits'],
             "labels": logits_dict['labels'],
             "preds": logits_dict['predictions'],
-            "mapping": value_to_index
+            "mapping": value_to_index if args.training_task == 'classification' else None
         }, os.path.join(args.outputs_path, f"{task_name}_{args.finetune_type}_lr={args.lr}_batchsize={args.batch_size}_logits.pt"))
 
     if wandb_run:

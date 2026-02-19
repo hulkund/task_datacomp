@@ -12,10 +12,10 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 from tqdm import tqdm
 import json
-from utils import get_dataset
+from baselines.utils import get_dataset
 import yaml
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, accuracy_score, mean_squared_error
-from train_on_subset import get_metrics, get_train_val_dl, get_model_processor, evaluate_full_finetune, train_full_finetune, get_features
+from training.train_on_subset import get_metrics, get_train_val_dl, get_model_processor, evaluate_full_finetune, train_full_finetune, get_features
 
 # Set random seed for reproducibility
 torch.manual_seed(42)
