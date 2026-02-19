@@ -2,7 +2,7 @@
 #SBATCH --partition=vision-beery
 #SBATCH --qos=vision-beery-main
 #SBATCH --account=vision-beery
-#SBATCH --output=slurm/slurm-%J.out
+#SBATCH --output=slurm/train-%J.out
 #SBATCH --gres=gpu:1
 #SBATCH -c 8
 #SBATCH --mem=100G
@@ -28,9 +28,10 @@ WANDB_ENTITY="${11}"
 WANDB_GROUP="${12}"
 WANDB_RUN_NAME="${13}"
 NUM_EPOCHS="${14}"
+SEED="${15:-}"
 
 # One-liner echo for debugging
-echo "Running with: Dataset=$DATASET_NAME | Train_csv_custom=$RELABELED_TRAIN_CSV | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK | Wandb_project=$WANDB_PROJECT | Wandb_entity=$WANDB_ENTITY | Num_epochs=$NUM_EPOCHS"
+echo "Running with: Dataset=$DATASET_NAME | Train_csv_custom=$RELABELED_TRAIN_CSV | Subset=$SUBSET_PATH | Output=$OUTPUTS_PATH | Config=$DATASET_CONFIG | LR=$LR | Finetune=$FINETUNE_TYPE | Batch=$BATCH_SIZE | Checkpoint=$CHECKPOINT_PATH | Training_task=$TRAINING_TASK | Wandb_project=$WANDB_PROJECT | Wandb_entity=$WANDB_ENTITY | Num_epochs=$NUM_EPOCHS | Seed=$SEED"
 
 # Build optional wandb arguments
 WANDB_ARGS=""
@@ -59,4 +60,5 @@ python training/train_on_subset.py \
     --checkpoint_path "$CHECKPOINT_PATH" \
     --training_task "$TRAINING_TASK" \
     ${NUM_EPOCHS:+--num_epochs "$NUM_EPOCHS"} \
+    ${SEED:+--seed "$SEED"} \
     $WANDB_ARGS

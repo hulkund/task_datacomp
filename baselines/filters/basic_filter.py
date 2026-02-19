@@ -1,9 +1,28 @@
 import numpy as np
 import torch
 import fasttext
+from typing import Any
+from pathlib import Path
+from urllib.request import urlretrieve
 
 
-def load_uids_with_basic_filter_helper(embedding_path) -> np.ndarray:
+def download(model_name: str, cache_dir: str) -> str:
+    """Download and cache known models, returning the local file path."""
+    if model_name != "fasttext":
+        raise ValueError(f"Unsupported model_name: {model_name}")
+
+    cache_path = Path(cache_dir).expanduser()
+    cache_path.mkdir(parents=True, exist_ok=True)
+    model_path = cache_path / "lid.176.bin"
+    if not model_path.exists():
+        urlretrieve(
+            "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin",
+            model_path,
+        )
+    return str(model_path)
+
+
+def load_uids_with_basic_filter(embedding_path) -> np.ndarray:
     """helper to run basic filter on a single parquet
 
     Args:

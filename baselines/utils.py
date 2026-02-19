@@ -19,6 +19,7 @@ from sklearn.model_selection import train_test_split
 import faiss
 import numpy as np
 import pdb
+import yaml
 
 
 def get_train_val_dl(dataset, batch_size, training_task):
@@ -71,11 +72,7 @@ def load_embedding(embedding_path:str, columns):
     return embed_df
 
 def get_dataset(dataset_name,split,subset_path=None,transform=None,dataframe=None):
-    if dataset_name == "COOS":
-        dataset = COOSDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "FMoW":
-        dataset = FMoWDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "iWildCam":
+    if dataset_name == "iWildCam":
         dataset = iWildCamDataset(split=split, subset_path=subset_path, transform=transform, dataframe=dataframe)
     elif dataset_name == "iWildCamCropped":
         dataset = iWildCamCroppedDataset(split=split, subset_path=subset_path, transform=transform)
@@ -83,8 +80,6 @@ def get_dataset(dataset_name,split,subset_path=None,transform=None,dataframe=Non
         dataset = GeoDEDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "AutoArborist":
         dataset = AutoArboristDataset(split=split, subset_path=subset_path, transform=transform)
-    elif dataset_name == "CropHarvest":
-        dataset = CropHarvestDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "SelfDrivingCar":
         dataset = SelfDrivingCarDataset(split=split, subset_path=subset_path, transform=transform)
     elif dataset_name == "FishDetection":

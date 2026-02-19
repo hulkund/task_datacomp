@@ -1,6 +1,6 @@
 import numpy as np
-from trust.strategies.partition_strategy import PartitionStrategy
-from .utils import get_dataset
+from trust.trust.strategies.partition_strategy import PartitionStrategy
+from baselines.utils import get_dataset
 
 def load_uids_with_partition_strategy(
     dataset_name,

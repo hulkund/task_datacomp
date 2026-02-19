@@ -1,5 +1,5 @@
 import numpy as np
-from utils import load_embedding, get_threshold
+from baselines.filters.utils import load_embedding, get_threshold
 
 def load_uids_with_clip_score(
     embedding_path: str,

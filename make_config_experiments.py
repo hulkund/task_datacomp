@@ -10,7 +10,7 @@ def build_experiment(dataset, baseline, finetune_type, lr, batch_size,
                      fraction, task, baselines_config, datasets_config,
                      experiments_dir, datasets_config_path,
                      wandb_project="", wandb_entity="", wandb_group=None,
-                     num_epochs=100):
+                     num_epochs=100, seed=42):
     """Build paths and commands for a single (filter, train) experiment."""
     embedding_path = f"all_datasets/{dataset}/embeddings/train_embeddings.npy"
     centroids_path = f"all_datasets/{dataset}/centroids/train_centroids.pt"
@@ -44,10 +44,10 @@ def build_experiment(dataset, baseline, finetune_type, lr, batch_size,
     group = wandb_group or f"{dataset}/{baseline}"
     run_name = f"{baseline}/{finetune_type}/frac={fraction}/lr={lr}/{task}"
     train_cmd = (
-        'sbatch training/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s "" "%s" "%s" "%s" "%s" %s'
+        'sbatch training/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s "%s" "%s" "%s" "%s" %s %s'
         % (dataset, save_path, save_folder, datasets_config_path,
            lr, finetune_type, batch_size, checkpoint_path, training_task,
-           wandb_project, wandb_entity, group, run_name, num_epochs)
+           wandb_project, wandb_entity, group, run_name, num_epochs, seed)
     )
 
     return {
@@ -68,7 +68,7 @@ def build_experiment(dataset, baseline, finetune_type, lr, batch_size,
 def generate_experiments(sweep, baselines_config, datasets_config,
                          experiments_dir, datasets_config_path,
                          wandb_project="", wandb_entity="", wandb_group=None,
-                         num_epochs=100):
+                         num_epochs=100, seed=42):
     """Yield experiment dicts from a single sweep definition."""
     datasets = sweep["datasets"]
     baselines = sweep["baselines"]
@@ -76,6 +76,7 @@ def generate_experiments(sweep, baselines_config, datasets_config,
     lr_list = sweep.get("lr_list", [0.001])
     batch_sizes = sweep.get("batch_sizes", [128])
     num_epochs = sweep.get("num_epochs", num_epochs)
+    seed = sweep.get("seed", seed)
 
     for dataset, baseline, finetune_type, batch_size in product(
         datasets, baselines, finetune_types, batch_sizes
@@ -95,7 +96,7 @@ def generate_experiments(sweep, baselines_config, datasets_config,
                 fraction, task, baselines_config, datasets_config,
                 experiments_dir, datasets_config_path,
                 wandb_project, wandb_entity, wandb_group,
-                num_epochs,
+                num_epochs, seed,
             )
 
 
@@ -105,6 +106,7 @@ def submit_jobs(experiments, dry_run=False, filter_only=False,
     submitted = 0
     skipped_filter = 0
     skipped_train = 0
+    skipped_no_subset = 0
 
     for exp in experiments:
         if max_jobs is not None and submitted >= max_jobs:
@@ -123,10 +125,12 @@ def submit_jobs(experiments, dry_run=False, filter_only=False,
                 subprocess.call(shlex.split(exp["filter_cmd"]))
                 submitted += 1
 
-        # Training job
+        # Training job (only if subset .npy exists)
         if not filter_only:
             if os.path.exists(exp["metrics_path"]):
                 skipped_train += 1
+            elif not os.path.exists(exp["save_path"]):
+                skipped_no_subset += 1
             elif dry_run:
                 print(f"[DRY RUN] train:  {exp['train_cmd']}")
                 submitted += 1
@@ -139,7 +143,8 @@ def submit_jobs(experiments, dry_run=False, filter_only=False,
 
     print(f"\nDone. Submitted: {submitted} | "
           f"Skipped (filter exists): {skipped_filter} | "
-          f"Skipped (metrics exist): {skipped_train}")
+          f"Skipped (metrics exist): {skipped_train} | "
+          f"Skipped (subset not ready): {skipped_no_subset}")
 
 
 def main():
@@ -164,6 +169,8 @@ def main():
                         help="Batch sizes (CLI fallback mode)")
     parser.add_argument("--num_epochs", type=int, required=False, default=100,
                         help="Number of training epochs (default: 100)")
+    parser.add_argument("--seed", type=int, required=False, default=42,
+                        help="Random seed passed to training (default: 42)")
 
     # Shared options
     parser.add_argument("--baselines_config", type=str, default="configs/subset_baselines.yaml")
@@ -208,6 +215,7 @@ def main():
             "lr_list": args.lr_list,
             "batch_sizes": args.batch_size_list,
             "num_epochs": args.num_epochs,
+            "seed": args.seed,
         }]
 
     # Generate and submit
@@ -219,7 +227,7 @@ def main():
             sweep, baselines_config, datasets_config,
             experiments_dir, args.datasets_config,
             args.wandb_project, args.wandb_entity, args.wandb_group,
-            args.num_epochs,
+            args.num_epochs, args.seed,
         ))
         print(f"Sweep '{sweep_name}': {len(exps)} experiments")
         all_experiments.extend(exps)

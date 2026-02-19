@@ -24,19 +24,19 @@ from baselines.utils import FaissIndexIVFFlat
 
 import argparse
 from baselines.utils import get_dataset
-from filters.caption_filter import caption_filter
+from baselines.filters.caption_filter import caption_filter
 from pathlib import Path
 
 # import all the filters
-from filters.gradmatch_filter import load_uids_with_gradmatch
-from filters.image_align_filter import load_uids_with_image_alignment
-from filters.basic_filter import load_uids_with_modality_filter
-from filters.random_filter import load_uids_with_random_filter
-from filters.clip_filter import load_uids_with_clip_score
-from filters.text_alignment_filter import load_uids_with_text_alignment
-from filters.tsds_filter import load_uids_with_tsds
-from filters.utils import load_uids
-from filters.prism_filter import load_uids_with_partition_strategy
+from baselines.filters.gradmatch_filter import load_uids_with_gradmatch
+from baselines.filters.image_align_filter import load_uids_with_image_alignment
+# from baselines.filters.basic_filter import load_uids_with_basic_filter
+from baselines.filters.random_filter import load_uids_with_random_filter
+from baselines.filters.clip_filter import load_uids_with_clip_score
+from baselines.filters.text_alignment_filter import load_uids_with_text_alignment
+from baselines.filters.tsds_filter import load_uids_with_tsds
+from baselines.filters.utils import load_uids
+from baselines.filters.prism_filter import load_uids_with_partition_strategy
 
 
 
@@ -65,23 +65,6 @@ def apply_filter(args: Any) -> None:
             embedding_path=args.embedding_path,
             subset_percent=args.fraction
         )
-    elif args.name == "image_based":
-        uids = load_uids_with_modality_filter(
-            val_embedding_path= args.val_embedding_path,
-            pool_embedding_path=args.embedding_path,
-            # val_centroids_path=args.centroids_path,
-            pool_centroids_path=args.centroids_path,
-            batch_size=16,
-        )
-    elif args.name == "text_based":
-        uids = load_uids_with_modality_filter(
-            val_embedding_path= args.val_embedding_path,
-            pool_embedding_path=args.embedding_path,
-            # val_centroids_path=args.centroids_path,
-            pool_centroids_path=args.centroids_path,
-            batch_size=16,
-            key="text_embedding"
-        )
     elif args.name == "clip_score":
         print(f"threshold {args.threshold} and fraction {args.fraction}")
         uids = load_uids_with_clip_score(
@@ -89,19 +72,6 @@ def apply_filter(args: Any) -> None:
             threshold=args.threshold,
             fraction=args.fraction,
             num_workers=0,
-        )
-    elif args.name == "image_clip":
-        print(f"threshold {args.threshold} and fraction {args.fraction}")
-        uids = load_uids_with_modality_filter(
-            val_embedding_path= args.val_embedding_path,
-            pool_embedding_path=args.embedding_path,
-            # val_centroids_path=args.centroids_path,
-            pool_centroids_path=args.centroids_path,
-            batch_size=args.batch_size,
-            # arch=args.arch,
-            threshold=args.threshold,
-            fraction=args.fraction,
-            # num_workers=args.num_workers,
         )
     elif args.name == "image_alignment":
         uids = load_uids_with_image_alignment(

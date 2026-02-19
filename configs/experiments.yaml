@@ -4,32 +4,40 @@
 # Fractions and tasks come from subset_baselines.yaml and datasets.yaml.
 
 experiments:
-  - name: "classification_sweep"
+  # - name: "classification_sweep"
+  #   datasets: [iWildCam, GeoDE, AutoArborist]
+  #   baselines: [no_filter, clip_score, image_alignment]
+  #   finetune_types: [lora_finetune_vit, full_finetune_resnet50]
+  #   lr_list: [0.001, 0.0001]
+  #   batch_sizes: [128]
+  #   num_epochs: 100
+
+  # - name: "regression_run"
+  #   datasets: [SelfDrivingCar]
+  #   baselines: [no_filter, random_filter, clip_score]
+  #   finetune_types: [full_finetune_resnet50]
+  #   lr_list: [0.0001]
+  #   batch_sizes: [64]
+  #   num_epochs: 100
+
+  # - name: "detection_run"
+  #   datasets: [FishDetection]
+  #   baselines: [no_filter, random_filter, tsds]
+  #   finetune_types: [full_finetune_resnet50]
+  #   lr_list: [0.0001]
+  #   batch_sizes: [64]
+  #   num_epochs: 100
+
+  # - name: "quick_test"
+  #   datasets: [iWildCam]
+  #   baselines: [no_filter]
+  #   finetune_types: [lora_finetune_vit]
+  #   num_epochs: 2  # override default 100
+  
+  - name: "zcore_run"
     datasets: [iWildCam, GeoDE, AutoArborist]
-    baselines: [no_filter, clip_score, image_alignment]
-    finetune_types: [lora_finetune_vit, full_finetune_resnet50]
-    lr_list: [0.001, 0.0001]
-    batch_sizes: [128]
-    num_epochs: 100
-
-  - name: "regression_run"
-    datasets: [SelfDrivingCar]
-    baselines: [no_filter, random_filter, clip_score]
-    finetune_types: [full_finetune_resnet50]
-    lr_list: [0.0001]
-    batch_sizes: [64]
-    num_epochs: 100
-
-  - name: "detection_run"
-    datasets: [FishDetection]
-    baselines: [no_filter, random_filter, tsds]
-    finetune_types: [full_finetune_resnet50]
-    lr_list: [0.0001]
-    batch_sizes: [64]
-    num_epochs: 100
-
-  - name: "quick_test"
-    datasets: [iWildCam]
-    baselines: [no_filter]
+    baselines: [no_filter, zcore, random_filter]
     finetune_types: [lora_finetune_vit]
-    num_epochs: 2  # override default 100
+    lr_list: [0.001]
+    batch_sizes: [128]
+    num_epochs: 100 # override default 100

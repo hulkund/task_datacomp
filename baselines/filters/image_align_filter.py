@@ -1,6 +1,6 @@
 import numpy as np
 import sklearn
-from utils import load_embedding
+from baselines.utils import load_embedding
 
     
 
