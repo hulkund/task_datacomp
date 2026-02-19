@@ -1,6 +1,6 @@
 import numpy as np
 import sklearn.metrics
-from baselines.utils import load_embedding
+from baselines.filters.utils import load_embedding
 
 
 def load_uids_with_text_alignment(

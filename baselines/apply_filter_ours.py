@@ -30,13 +30,16 @@ from pathlib import Path
 # import all the filters
 from baselines.filters.gradmatch_filter import load_uids_with_gradmatch
 from baselines.filters.image_align_filter import load_uids_with_image_alignment
-# from baselines.filters.basic_filter import load_uids_with_basic_filter
-from baselines.filters.random_filter import load_uids_with_random_filter
-from baselines.filters.clip_filter import load_uids_with_clip_score
-from baselines.filters.text_alignment_filter import load_uids_with_text_alignment
-from baselines.filters.tsds_filter import load_uids_with_tsds
 from baselines.filters.utils import load_uids
 from baselines.filters.prism_filter import load_uids_with_partition_strategy
+from baselines.filters.zcore_filter import load_uids_with_zcore
+from baselines.filters.utils import load_uids
+from baselines.filters.text_alignment_filter import load_uids_with_text_alignment
+from baselines.filters.clip_filter import load_uids_with_clip_score
+from baselines.filters.centroids_filter import load_uids_with_modality_filter
+from baselines.filters.random_filter import load_uids_with_random_filter
+from baselines.filters.tsds_filter import load_uids_with_tsds
+from filters.prism_filter import load_uids_with_partition_strategy
 
 
 
@@ -98,15 +101,16 @@ def apply_filter(args: Any) -> None:
             lam=1.0,
             args=args,
         )
-    elif args.name == "prism":
-        uids = load_uids_with_partition_strategy(
-            labeled_dataset=args.labeled_dataset,
-            unlabeled_dataset=args.unlabeled_dataset,
-            model=args.model,
-            nclasses=args.nclasses,
-            budget=args.budget,
-            args=args.partition_args
-    )
+    elif args.name == "zcore":
+       uids = load_uids_with_zcore(
+           pool_embedding_path=args.embedding_path,
+           fraction=args.fraction,
+           n_sample=int(getattr(args, 'n_sample', 1_000)),
+           sample_dim=int(getattr(args, 'sample_dim', 2)),
+           redund_nn=int(getattr(args, 'redund_nn', 1000)),
+           redund_exp=int(getattr(args, 'redund_exp', 4)),
+           num_workers=args.num_workers,
+       )
     else:
         raise ValueError(f"Unknown args.name argument: {args.name}")
 

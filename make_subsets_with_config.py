@@ -11,9 +11,9 @@ def main():
     finetune_list = ["full_finetune_resnet50"]
     lr_list = [0.001, 0.0001]
     batch_size_list = [128]
-    num_epochs = 100
+    num_epochs = 1 # just for testing purposes - set to 100 for actual runs
     baselines_config = "configs/subset_baselines.yaml"
-    datasets_config = "configs/datasets.yaml"
+    datasets_config_path = "configs/datasets.yaml"
     experiments_dir = "experiments_again"
     wandb_project = "DataS3 logging"
     wandb_entity = "datas3"
@@ -22,7 +22,7 @@ def main():
     with open(baselines_config, 'r') as file:
         baselines_config = yaml.safe_load(file)
 
-    with open(datasets_config, 'r') as file:
+    with open(datasets_config_path, 'r') as file:
         datasets_config = yaml.safe_load(file)
 
     for dataset in dataset_list:
@@ -71,9 +71,9 @@ def main():
                                     wandb_group_arg = wandb_group or f"{dataset}/{baseline}"
                                     wandb_run_name = f"{baseline}/{finetune_type}/frac={fraction}/lr={lr}/{task}"
                                     subprocess.call(shlex.split(
-                                        'sbatch training/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s "" "%s" "%s" "%s" "%s" %s' % (
+                                        'sbatch training/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s "%s" "%s" "%s" "%s" %s' % (
                                             dataset, save_path, save_folder,
-                                            datasets_config, lr, finetune_type,
+                                            datasets_config_path, lr, finetune_type,
                                             batch_size, checkpoint_path, training_task,
                                             wandb_project_arg, wandb_entity_arg,
                                             wandb_group_arg, wandb_run_name,

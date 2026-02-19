@@ -1,7 +1,7 @@
 import os
 import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('/data/vision/beery/scratch/neha/task-datacomp/')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import argparse
 import numpy as np
@@ -51,6 +51,7 @@ def train_classification(model,
         model = train_full_finetune(model=model,
                                     train_dataloader=train_dl,
                                     val_dataloader=val_dl,
+                                    dataset_name=dataset_name,
                                     num_epochs=num_epochs,
                                     criterion=criterion,
                                     optimizer=optimizer,
@@ -165,6 +166,7 @@ def evaluate_full_finetune(model, test_dataloader, log_gpu_every=10):
 def train_full_finetune(model,
                         train_dataloader,
                         val_dataloader,
+                        dataset_name,
                         num_epochs,
                         criterion,
                         optimizer,
@@ -239,9 +241,9 @@ def train_full_finetune(model,
         print(f"Epoch {epoch} validation loss: {val_loss}, accuracy: {val_accuracy:.2f}%")
         if wandb_run:
             wandb_run.log({
-                "train_loss": running_loss / len(train_dataloader),
-                "val_loss": val_loss / len(val_dataloader),
-                "val_accuracy": val_accuracy,
-                "epoch": epoch,
+                f"{dataset_name}/train_loss": running_loss / len(train_dataloader),
+                f"{dataset_name}/val_loss": val_loss / len(val_dataloader),
+                f"{dataset_name}/val_accuracy": val_accuracy,
+                f"{dataset_name}/epoch": epoch,
             })
     return model

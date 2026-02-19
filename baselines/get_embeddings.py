@@ -1,6 +1,6 @@
 import sys
 import os
-from utils import get_dataset
+from baselines.utils import get_dataset
 import argparse
 import numpy as np
 from sklearn.linear_model import LogisticRegression

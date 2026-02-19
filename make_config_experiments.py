@@ -44,7 +44,7 @@ def build_experiment(dataset, baseline, finetune_type, lr, batch_size,
     group = wandb_group or f"{dataset}/{baseline}"
     run_name = f"{baseline}/{finetune_type}/frac={fraction}/lr={lr}/{task}"
     train_cmd = (
-        'sbatch training/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s "%s" "%s" "%s" "%s" %s %s'
+        'sbatch training/run_new_train.sh "%s" "%s" "%s" "%s" %s %s %s "%s" %s "%s" "%s" "%s" "%s" %s'
         % (dataset, save_path, save_folder, datasets_config_path,
            lr, finetune_type, batch_size, checkpoint_path, training_task,
            wandb_project, wandb_entity, group, run_name, num_epochs, seed)

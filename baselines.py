@@ -21,6 +21,7 @@ BASELINES = {
     "text_alignment",
     "tsds",
     "gradmatch",
+    "zcore",
 }
 
 def check_args(args):
@@ -56,7 +57,7 @@ def check_args(args):
     npy_parent = Path(args.save_path).parent
     if not os.path.exists(npy_parent):
         print(f"creating: {npy_parent}")
-        os.mkdir(npy_parent)
+        os.makedirs(npy_parent)
 
 
 if __name__ == "__main__":

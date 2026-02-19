@@ -2,7 +2,7 @@ import numpy as np
 import yaml
 import heapq
 from baselines.utils import FaissIndexIVFFlat
-from baselines.utils import load_embedding
+from baselines.filters.utils import load_embedding
 import pandas as pd
 
 

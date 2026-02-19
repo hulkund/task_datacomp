@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 import pandas as pd
 
-root_path='/data/vision/beery/scratch/neha/task-datacomp/all_datasets/AutoArborist/data'
+root_path='/data/vision/beery/scratch/hasic/task-datacomp/all_datasets/AutoArborist/data'
 FILEPATHS = {'test1':'test-senegal.csv',
              'test2':'test-tigray2020.csv',
              'test3':'test-tigray2021.csv',
