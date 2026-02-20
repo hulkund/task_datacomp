@@ -9,7 +9,15 @@
 #SBATCH --mem=50G
 #SBATCH --time=12:00:00
 
-source /data/vision/beery/scratch/neha/.bashrc
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.local_paths.sh" ]; then
+    source "$SCRIPT_DIR/.local_paths.sh"
+fi
+
+BASHRC_PATH="${BASHRC_PATH:-$HOME/.bashrc}"
+if [ -f "$BASHRC_PATH" ]; then
+    source "$BASHRC_PATH"
+fi
 
 learning_rates=(0.001 0.01 0.1)
 batch_sizes=(32)

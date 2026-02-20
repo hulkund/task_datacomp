@@ -9,7 +9,15 @@
 #SBATCH --time=1-23:00:00
 #SBATCH --requeue
 
-source /data/vision/beery/scratch/neha/.bashrc
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.local_paths.sh" ]; then
+    source "$SCRIPT_DIR/.local_paths.sh"
+fi
+
+BASHRC_PATH="${BASHRC_PATH:-$HOME/.bashrc}"
+if [ -f "$BASHRC_PATH" ]; then
+    source "$BASHRC_PATH"
+fi
 # conda activate datacomp
 
 # python minibatxhing_ot.py

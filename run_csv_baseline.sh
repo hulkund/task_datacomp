@@ -7,11 +7,20 @@
 #SBATCH -c 8
 #SBATCH --mem=100G
 #SBATCH --time=23:00:00
-#SBATCH --chdir=/data/vision/beery/scratch/evelyn/task_datacomp
+#SBATCH --chdir=.
 #SBATCH --requeue
 
-source /data/vision/beery/scratch/evelyn/.bashrc
-conda activate datacomp
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.local_paths.sh" ]; then
+    source "$SCRIPT_DIR/.local_paths.sh"
+fi
+
+BASHRC_PATH="${BASHRC_PATH:-$HOME/.bashrc}"
+CONDA_ENV="${CONDA_ENV:-datacomp}"
+if [ -f "$BASHRC_PATH" ]; then
+    source "$BASHRC_PATH"
+fi
+conda activate "$CONDA_ENV"
 
 
 python baselines.py \
@@ -20,4 +29,3 @@ python baselines.py \
 	--task_name "$3" \
     --fraction $4 \
 	--save_path "$5" 
-

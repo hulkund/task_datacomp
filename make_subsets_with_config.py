@@ -9,7 +9,7 @@ def main():
     dataset_list = ["iWildCam"]
     baselines_list = ["no_filter"]
     finetune_list = ["full_finetune_resnet50"]
-    lr_list = [0.001, 0.0001]
+    lr_list = [0.001]
     batch_size_list = [128]
     num_epochs = 1 # just for testing purposes - set to 100 for actual runs
     baselines_config = "configs/subset_baselines.yaml"

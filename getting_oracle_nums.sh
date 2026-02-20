@@ -8,8 +8,17 @@
 #SBATCH --mem=100G
 #SBATCH --time=12:00:00
 
-source /data/vision/beery/scratch/neha/.bashrc
-conda activate datacomp
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.local_paths.sh" ]; then
+    source "$SCRIPT_DIR/.local_paths.sh"
+fi
+
+BASHRC_PATH="${BASHRC_PATH:-$HOME/.bashrc}"
+CONDA_ENV="${CONDA_ENV:-datacomp}"
+if [ -f "$BASHRC_PATH" ]; then
+    source "$BASHRC_PATH"
+fi
+conda activate "$CONDA_ENV"
 
 learning_rates=(0.1 0.01 0.001)   # Fixed missing space between values
 batch_sizes=(32)     
@@ -35,8 +44,8 @@ do
                 echo "#SBATCH -c 8" >> $job_file
                 echo "#SBATCH --mem=100G" >> $job_file
                 echo "#SBATCH --time=12:00:00" >> $job_file
-                echo "source /data/vision/beery/scratch/neha/.bashrc" >> $job_file
-                echo "conda activate datacomp" >> $job_file
+                echo "if [ -f \"$BASHRC_PATH\" ]; then source \"$BASHRC_PATH\"; fi" >> $job_file
+                echo "conda activate \"$CONDA_ENV\"" >> $job_file
                 echo "python baselines/train_on_subset_classification.py --outputs_path experiments/$dataset_name/oracle_subsets/ --batch_size $batch_size --lr $lr --subset_path \"$filename\" --dataset_name $dataset_name --finetune_type full_finetune --dataset_config configs/datasets.yaml  --checkpoint_path oracle_checkpoint" >> $job_file
                 
                 # Submit the job

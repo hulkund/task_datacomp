@@ -8,8 +8,17 @@
 #SBATCH --mem=200G
 #SBATCH --time=2-20:00:00
 
-source /data/vision/beery/scratch/neha/.bashrc
-micromamba activate datacomp
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.local_paths.sh" ]; then
+    source "$SCRIPT_DIR/.local_paths.sh"
+fi
+
+BASHRC_PATH="${BASHRC_PATH:-$HOME/.bashrc}"
+MAMBA_ENV="${MAMBA_ENV:-datacomp}"
+if [ -f "$BASHRC_PATH" ]; then
+    source "$BASHRC_PATH"
+fi
+micromamba activate "$MAMBA_ENV"
 
 # python get_clip_embeddings.py --dataset_name "SelfDrivingCar"
 for dataset in "SelfDrivingCar" "ReID" "GeoDE" "FishDetection" "iWildCam" "AutoArborist"; do
@@ -38,6 +47,5 @@ for dataset in "SelfDrivingCar" "ReID" "GeoDE" "FishDetection" "iWildCam" "AutoA
         done
     done
 done
-
 
 

@@ -9,8 +9,18 @@
 #SBATCH --time=15:00:00
 #SBATCH --requeue
 
-source /data/vision/beery/scratch/neha/.bashrc
-conda activate datacomp
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -f "$PROJECT_ROOT/.local_paths.sh" ]; then
+    source "$PROJECT_ROOT/.local_paths.sh"
+fi
+
+BASHRC_PATH="${BASHRC_PATH:-$HOME/.bashrc}"
+CONDA_ENV="${CONDA_ENV:-datacomp}"
+if [ -f "$BASHRC_PATH" ]; then
+    source "$BASHRC_PATH"
+fi
+conda activate "$CONDA_ENV"
 
 # Assign arguments to variables
 DATASET_NAME="$1"
@@ -30,13 +40,14 @@ if [ "$#" -ge 15 ] && [ -z "${10}" ]; then
     WANDB_GROUP="${13}"
     WANDB_RUN_NAME="${14}"
     NUM_EPOCHS="${15}"
+    SEED="${16:-}"
 else
     WANDB_PROJECT="${10:-}"
     WANDB_ENTITY="${11:-}"
     WANDB_GROUP="${12:-}"
     WANDB_RUN_NAME="${13:-}"
     NUM_EPOCHS="${14:-}"
-SEED="${15:-}"
+    SEED="${15:-}"
 fi
 
 # One-liner echo for debugging
@@ -71,4 +82,4 @@ python training/train_on_subset.py \
     --training_task "$TRAINING_TASK" \
     ${NUM_EPOCHS:+--num_epochs "$NUM_EPOCHS"} \
     ${SEED:+--seed "$SEED"} \
-    $WANDB_ARGS
+    "${WANDB_ARGS[@]}"
